@@ -1,0 +1,26 @@
+# Gradle / Android 构建产物
+.gradle/
+build/
+**/build/
+
+# 本机配置（含 SDK 路径，绝不能上传）
+local.properties
+
+# IDE
+.idea/
+*.iml
+.kotlin/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 本机辅助脚本（含个人路径，仅供本机使用）
+build.bat
+
+# 日志 / 系统文件
+*.log
+.DS_Store
+Thumbs.db
+
+# KSP Room schema（本地生成）
+app/schemas/

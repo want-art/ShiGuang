@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">拾光</string>
+    <string name="listener_label">拾光·美好瞬间守护</string>
+    <string name="a11y_label">拾光·聊天文字捕获</string>
+</resources>

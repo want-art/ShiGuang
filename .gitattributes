@@ -1,0 +1,12 @@
+# 统一换行符，保证跨平台（Windows/macOS/Linux）克隆后构建一致
+* text=auto
+
+# 源码统一 LF
+*.kt text eol=lf
+*.kts text eol=lf
+*.java text eol=lf
+*.xml text eol=lf
+*.gradle text eol=lf
+*.md text eol=lf
+*.bat text eol=crlf
+*.properties text eol=lf
