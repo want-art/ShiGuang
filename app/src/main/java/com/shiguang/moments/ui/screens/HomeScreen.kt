@@ -119,13 +119,6 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
     val prompt = remember { DailyPrompts.promptForToday() }
     var showLevelUp by remember { mutableStateOf(false) }
 
-    // 重要的人（来自星标/置顶）
-    val pinnedPeople = remember(profile.starContacts) {
-        profile.starContacts.mapNotNull { key ->
-            key.substringAfter(com.shiguang.moments.prefs.Profile.SEP, "").takeIf { it.isNotEmpty() }
-        }.take(6)
-    }
-
     val picker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
     ) { uris -> if (uris.isNotEmpty()) imageUris = imageUris + uris }
@@ -161,30 +154,9 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
 
             item { MoodStampCard(todayEmoji = todayMood?.emoji, onPick = { vm.recordMood(it) }) }
 
-            if (pinnedPeople.isNotEmpty()) {
-                item {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("重要的人", style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Spacer(Modifier.weight(1f))
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.horizontalScroll(rememberScrollState())) {
-                        pinnedPeople.forEach { p ->
-                            AssistChip(
-                                onClick = { sender = p },
-                                label = { Text("💛 $p") },
-                            )
-                        }
-                    }
-                }
-            }
-
             if (showMagazine) {
                 item { WeeklyMagazineCard(weekMoments = weekMoments, onKeep = { vm.setMagazineShown(currentWeek) }) }
             }
-
-            item { DailyPromptCard(prompt = prompt, onUse = { note = it }) }
 
             item { LuckyHero(nav) }
 
@@ -230,21 +202,19 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
             }
 
             item {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("最近的美好", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { nav.navigate("timeline") }) { Text("完整时间线 →") }
-                }
-            }
-            val preview = moments.take(8)
-            if (preview.isEmpty()) {
-                item {
-                    Text("还没有收藏任何瞬间。在上面随手记下第一笔，把心动的瞬间留住。",
-                        style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            } else {
-                items(preview, key = { it.id }) { m ->
-                    MomentCard(m, onOpen = { nav.navigate("moment/${m.id}") })
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { nav.navigate("timeline") },
+                ) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Text("已收藏 ${moments.size} 段美好",
+                            style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                        Spacer(Modifier.weight(1f))
+                        Text("去时间线看全部 →", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary)
+                    }
                 }
             }
             item { Spacer(Modifier.height(16.dp)) }
@@ -318,29 +288,6 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
             dismissButton = { TextButton({ showDatePicker = false }) { Text("取消") } },
         ) {
             DatePicker(state = state)
-        }
-    }
-}
-
-@Composable
-private fun DailyPromptCard(prompt: String, onUse: (String) -> Unit) {
-    Card(
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onUse(prompt) },
-    ) {
-        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Lightbulb, null, tint = MaterialTheme.colorScheme.tertiary)
-            Spacer(Modifier.width(10.dp))
-            Column(Modifier.weight(1f)) {
-                Text(DailyPrompts.displayDate(), style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer)
-                Text(prompt, style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer, fontStyle = FontStyle.Italic)
-            }
-            AssistChip(onClick = { onUse(prompt) }, label = { Text("写下来") })
         }
     }
 }

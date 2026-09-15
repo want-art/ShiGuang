@@ -72,6 +72,10 @@ fun LevelCard(
 ) {
     val next = com.shiguang.moments.scoring.LevelCatalog.nextLevel(totalMoments)
     val needNext = (next?.from ?: totalMoments) - totalMoments
+    // 等级图案：轻微上下浮动 + 缓缓呼吸，显得有生命
+    val levelT = rememberInfiniteTransition(label = "lv")
+    val bobY by levelT.animateFloat(0f, -6f, infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "bob")
+    val bobScale by levelT.animateFloat(1f, 1.08f, infiniteRepeatable(tween(1800), RepeatMode.Reverse), label = "bobS")
     Card(
         modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(22.dp),
@@ -92,6 +96,7 @@ fun LevelCard(
                 Box(
                     Modifier
                         .size(58.dp)
+                        .graphicsLayer { translationY = bobY; scaleX = bobScale; scaleY = bobScale }
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.primary, CircleShape),
                     contentAlignment = Alignment.Center,

@@ -19,6 +19,7 @@ import com.shiguang.moments.ui.screens.MainScreen
 import com.shiguang.moments.ui.screens.MomentDetailScreen
 import com.shiguang.moments.ui.screens.MonthlyReportScreen
 import com.shiguang.moments.ui.screens.OnboardingScreen
+import com.shiguang.moments.ui.screens.PersonScreen
 import com.shiguang.moments.ui.screens.SearchScreen
 import com.shiguang.moments.ui.screens.TimelineScreen
 import com.shiguang.moments.ui.screens.YearAgoScreen
@@ -58,6 +59,10 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
         composable("yearago") { YearAgoScreen(nav, viewModel) }
         composable("levels") { LevelDetailScreen(nav, viewModel) }
         composable("monthly") { MonthlyReportScreen(nav, viewModel) }
+        composable(
+            "person/{name}",
+            arguments = listOf(navArgument("name") { type = NavType.StringType }),
+        ) { PersonScreen(nav, viewModel, it.arguments?.getString("name") ?: "") }
         composable("lucky") { LuckyCardScreen(nav, viewModel) }
         composable(
             "moment/{id}",

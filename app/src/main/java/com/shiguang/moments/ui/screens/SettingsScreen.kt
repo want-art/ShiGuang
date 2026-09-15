@@ -94,20 +94,6 @@ fun SettingsScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
         ) {
             item { ProfileCard(profile, onEdit = { editProfile = true }, onAvatarPick = { avatarPicker.launch("image/*") }) }
 
-            item { SectionTitle("你在意什么") }
-            item {
-                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                    Column(Modifier.padding(12.dp)) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(bottom = 8.dp)) {
-                            ThemeCatalog.ALL.take(6).forEach { ThemeChip(it.slug, it.label, profile.themes, vm) }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            ThemeCatalog.ALL.drop(6).forEach { ThemeChip(it.slug, it.label, profile.themes, vm) }
-                        }
-                    }
-                }
-            }
-
             item { SectionTitle("守护") }
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
@@ -122,28 +108,30 @@ fun SettingsScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
                 }
             }
 
-            item { SectionTitle("重要的人") }
+            item { SectionTitle("联系人") }
             item {
+                val senders = moments.groupingBy { it.sender }.eachCount()
+                    .entries.sortedByDescending { it.value }.take(24)
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-                    val senders = moments.groupingBy { it.sender }.eachCount()
-                        .entries.sortedByDescending { it.value }.take(12).map { it.key }
                     if (senders.isEmpty()) {
-                        Text("收藏几段后，这里会出现常出现的人，可把重要的人标星。",
+                        Text("收藏几段后，这里会出现和你相关的人。",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.padding(14.dp))
                     } else {
                         Column(Modifier.padding(6.dp)) {
-                            senders.forEach { name ->
-                                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
-                                    verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.Star, null,
-                                        tint = if (name in profile.starSetFor("manual")) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline,
-                                        modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(10.dp))
+                            senders.forEach { (name, count) ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 7.dp)
+                                        .clickable {
+                                            val enc = java.net.URLEncoder.encode(name, "UTF-8")
+                                            nav.navigate("person/$enc")
+                                        },
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
                                     Text(name, style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
-                                    val star = name in profile.starSetFor("manual")
-                                    Switch(star, { vm.setContactStar(name, "manual", it) })
+                                    Text("$count 段 →", style = MaterialTheme.typography.labelMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }

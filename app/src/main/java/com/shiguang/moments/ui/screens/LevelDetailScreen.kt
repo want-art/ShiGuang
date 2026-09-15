@@ -1,5 +1,6 @@
 package com.shiguang.moments.ui.screens
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -34,6 +35,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -70,6 +72,11 @@ fun LevelDetailScreen(nav: NavHostController, vm: AppViewModel) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
+                val t = androidx.compose.animation.core.rememberInfiniteTransition(label = "ld")
+                val floatY by t.animateFloat(0f, -8f,
+                    androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2000), androidx.compose.animation.core.RepeatMode.Reverse), label = "fy")
+                val sway by t.animateFloat(-4f, 4f,
+                    androidx.compose.animation.core.infiniteRepeatable(androidx.compose.animation.core.tween(2600), androidx.compose.animation.core.RepeatMode.Reverse), label = "sw")
                 Box(
                     Modifier.fillMaxWidth().background(
                         Brush.verticalGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)),
@@ -77,7 +84,10 @@ fun LevelDetailScreen(nav: NavHostController, vm: AppViewModel) {
                     ).padding(22.dp),
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("${level.emoji}", fontSize = 44.sp)
+                        Text("${level.emoji}", fontSize = 44.sp, modifier = Modifier.graphicsLayer {
+                            translationY = floatY
+                            rotationZ = sway
+                        })
                         Spacer(Modifier.height(8.dp))
                         Text(level.name, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimary)
