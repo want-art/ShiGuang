@@ -87,6 +87,27 @@ class MomentRepository(private val appContext: Context) {
         return id
     }
 
+    /** 给今天的自己写一句：保存为自动星标的「自我鼓励」瞬间 */
+    suspend fun writeToSelf(text: String): Long {
+        val msg = ChatMessage(app = "self", sender = "我", text = text, type = MomentType.TEXT,
+            sentAt = System.currentTimeMillis())
+        val id = momentDao.insert(
+            MomentEntity(
+                capturedAt = msg.sentAt,
+                createdAt = System.currentTimeMillis(),
+                app = msg.app, sender = msg.sender,
+                type = MomentType.TEXT,
+                text = msg.text,
+                starred = true,
+                themeTags = tagsFor(msg.text),
+                source = "self",
+            )
+        )
+        bumpContactMoment(msg.app, msg.sender)
+        Notifier.postSaved(appContext, id, "自己")
+        return id
+    }
+
     /** 为已有瞬间追加图片（多张） */
     suspend fun attachManualImage(id: Long, uris: List<Uri>): Boolean {
         val m = momentDao.byId(id) ?: return false

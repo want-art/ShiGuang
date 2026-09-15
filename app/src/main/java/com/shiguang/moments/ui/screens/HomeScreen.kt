@@ -7,6 +7,7 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -40,9 +42,11 @@ import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -110,8 +114,17 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
     var atMillis by remember { mutableStateOf(System.currentTimeMillis()) }
     var atDayLabel by remember { mutableStateOf("今天") }
     var showDatePicker by remember { mutableStateOf(false) }
+    var showSelfSheet by remember { mutableStateOf(false) }
+    var selfText by remember { mutableStateOf("") }
     val prompt = remember { DailyPrompts.promptForToday() }
     var showLevelUp by remember { mutableStateOf(false) }
+
+    // 重要的人（来自星标/置顶）
+    val pinnedPeople = remember(profile.starContacts) {
+        profile.starContacts.mapNotNull { key ->
+            key.substringAfter(com.shiguang.moments.prefs.Profile.SEP, "").takeIf { it.isNotEmpty() }
+        }.take(6)
+    }
 
     val picker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
@@ -148,6 +161,25 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
 
             item { MoodStampCard(todayEmoji = todayMood?.emoji, onPick = { vm.recordMood(it) }) }
 
+            if (pinnedPeople.isNotEmpty()) {
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("重要的人", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.weight(1f))
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.horizontalScroll(rememberScrollState())) {
+                        pinnedPeople.forEach { p ->
+                            AssistChip(
+                                onClick = { sender = p },
+                                label = { Text("💛 $p") },
+                            )
+                        }
+                    }
+                }
+            }
+
             if (showMagazine) {
                 item { WeeklyMagazineCard(weekMoments = weekMoments, onKeep = { vm.setMagazineShown(currentWeek) }) }
             }
@@ -163,6 +195,10 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
                     imageUris = imageUris, onImageUris = { imageUris = it },
                     atDayLabel = atDayLabel, onDatePick = { showDatePicker = true },
                     onPick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                    onSelfWrite = {
+                        selfText = prompt
+                        showSelfSheet = true
+                    },
                     onSave = {
                         if (sender.isNotBlank() || note.isNotBlank() || imageUris.isNotEmpty()) {
                             vm.saveManual(sender, note, imageUris, atMillis)
@@ -216,6 +252,43 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
 
         XpToast(text = toastFlow, onShown = {})
         LevelUpOverlay(level = level, visible = showLevelUp, onDismiss = { showLevelUp = false })
+    }
+
+    if (showSelfSheet) {
+        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+        val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+        ModalBottomSheet(
+            onDismissRequest = { showSelfSheet = false },
+            sheetState = sheetState,
+        ) {
+            Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 34.dp)) {
+                Text("💌 给今天的自己说一句", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.height(6.dp))
+                Text("写下来的这段话会作为星标瞬间珍藏起来",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Spacer(Modifier.height(12.dp))
+                OutlinedTextField(
+                    value = selfText,
+                    onValueChange = { selfText = it },
+                    label = { Text("今天的鼓励（可改）") },
+                    minLines = 4,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Spacer(Modifier.height(12.dp))
+                Button(
+                    onClick = {
+                        if (selfText.isNotBlank()) {
+                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                            vm.writeToSelf(selfText.trim())
+                            selfText = ""
+                            showSelfSheet = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth().height(50.dp),
+                ) { Text("收进回忆 💙") }
+            }
+        }
     }
 
     if (showDatePicker) {
@@ -297,7 +370,7 @@ private fun QuickAddCard(
     note: String, onNote: (String) -> Unit,
     imageUris: List<Uri>, onImageUris: (List<Uri>) -> Unit,
     atDayLabel: String, onDatePick: () -> Unit,
-    onPick: () -> Unit, onSave: () -> Unit,
+    onPick: () -> Unit, onSelfWrite: () -> Unit, onSave: () -> Unit,
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(16.dp)) {
@@ -342,6 +415,7 @@ private fun QuickAddCard(
                     Text(if (imageUris.isEmpty()) "加图（可多选）" else "再加")
                 }
                 Spacer(Modifier.weight(1f))
+                TextButton(onClick = onSelfWrite) { Text("💌 写给自己") }
                 Button(onClick = onSave) { Text("收进回忆库") }
             }
         }

@@ -55,6 +55,13 @@ class AppViewModel : ViewModel() {
         val after = moments.value.size
         maybeFireSavedEvents(before, after)
     }
+    /** 写给自己（自动星标） */
+    fun writeToSelf(text: String) = viewModelScope.launch {
+        val before = moments.value.size
+        AppGraph.repo.writeToSelf(text)
+        val after = moments.value.size
+        maybeFireSavedEvents(before, after)
+    }
     fun toggleStar(id: Long) = viewModelScope.launch { AppGraph.repo.toggleStar(id) }
     fun setNote(id: Long, n: String) = viewModelScope.launch { AppGraph.repo.setNote(id, n) }
     fun setQuote(id: Long, q: String) = viewModelScope.launch { AppGraph.repo.setQuote(id, q) }

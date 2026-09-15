@@ -232,36 +232,76 @@ private fun Particles(seed: Int) {
     }
 }
 
-/** 右下角飘出的「+1 XP」轻提示 */
+/** 保存成功反馈：爱心 + 温暖文案，从底部弹起、轻晃后淡出 */
 @Composable
 fun XpToast(text: String?, onShown: () -> Unit) {
     var visible by remember { mutableStateOf(false) }
     var last by remember { mutableStateOf<String?>(null) }
+    var seed by remember { mutableStateOf(0) }
+
+    val popScale by animateFloatAsState(
+        targetValue = if (visible) 1f else 0.7f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessLow),
+        label = "pop",
+    )
+    val lift by animateFloatAsState(
+        targetValue = if (visible) 0f else 24f,
+        animationSpec = spring(dampingRatio = 0.7f, stiffness = Spring.StiffnessMedium),
+        label = "lift",
+    )
+    val fade by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = tween(if (visible) 220 else 400),
+        label = "fade",
+    )
+    val weak by animateFloatAsState(
+        targetValue = if (visible) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessLow),
+        label = "lift2",
+    )
+    val heartScale by animateFloatAsState(
+        targetValue = if (visible) 1.18f else 0.9f,
+        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        label = "heart",
+    )
+
     LaunchedEffect(text) {
         if (text != null && text != last) {
             last = text
+            seed++
             visible = true
-            delay(1300)
+            delay(1900)
             visible = false
-            delay(300)
+            delay(350)
             onShown()
         }
     }
-    AnimatedVisibility(
-        visible = visible,
-        enter = fadeIn(tween(180)) + slideInVertically(initialOffsetY = { it }, animationSpec = tween(220)),
-        exit = fadeOut(tween(220)) + slideOutVertically(targetOffsetY = { it }, animationSpec = tween(220)),
-    ) {
+    if (visible || fade > 0f) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
             Card(
-                shape = RoundedCornerShape(20.dp),
-                elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary),
-                modifier = Modifier.padding(bottom = 92.dp),
+                shape = RoundedCornerShape(22.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer),
+                modifier = Modifier
+                    .padding(bottom = 88.dp + lift.dp)
+                    .graphicsLayer {
+                        scaleX = popScale; scaleY = popScale
+                        alpha = fade
+                        rotationZ = (weak - 0.5f) * 2f * 2f // 轻晃
+                    },
             ) {
-                Text(text ?: "", color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp))
+                Row(Modifier.padding(horizontal = 18.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.size(30.dp).graphicsLayer { scaleX = heartScale; scaleY = heartScale }, contentAlignment = Alignment.Center) {
+                        Text("💙", fontSize = 22.sp)
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(text ?: "", style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text("+1 XP · 已珍藏", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.75f))
+                    }
+                }
             }
         }
     }

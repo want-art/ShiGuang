@@ -122,7 +122,7 @@ fun SettingsScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
                 }
             }
 
-            item { SectionTitle("星标联系人") }
+            item { SectionTitle("重要的人") }
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     val senders = moments.groupingBy { it.sender }.eachCount()

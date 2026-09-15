@@ -3,6 +3,7 @@ package com.shiguang.moments.ui.screens
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -82,9 +83,20 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
     }
     val rotation by animateFloatAsState(
         targetValue = if (flipped) 180f else 0f,
-        // 弹簧回弹：翻到 90° 附近微微顿一下，质感更自然
-        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
+        // 更软的弹簧：慢一点、末端带轻微回弹，像真实的扑克翻牌
+        animationSpec = spring(dampingRatio = 0.72f, stiffness = Spring.StiffnessVeryLow),
         label = "flip",
+    )
+    // 揭面时轻微放大 + 柔和淡入，降低"二段生硬"
+    val liftScale by animateFloatAsState(
+        targetValue = if (flipped) 1.035f else 1f,
+        animationSpec = spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMedium),
+        label = "scale",
+    )
+    val faceFade by animateFloatAsState(
+        targetValue = if (flipped) 1f else 0f,
+        animationSpec = tween(durationMillis = 220),
+        label = "faceFade",
     )
 
     Scaffold(topBar = {
@@ -119,15 +131,16 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
                             .graphicsLayer {
                                 rotationY = rotation
                                 cameraDistance = 14f * density
+                                scaleX = liftScale
+                                scaleY = liftScale
                             }
                             .clickable(enabled = moments.isNotEmpty()) { flipped = !flipped },
                     ) {
-                        // 单面渲染：旋转<90° 显示封面；≥90° 显示背面
-                        // 背面预旋转 180° 抵消镜像
+                        // 单面渲染：旋转<90° 显示封面；≥90° 显示背面（背面卡片自反 180° 抵消镜像）
                         if (rotation < 90f) {
                             CardCover()
                         } else {
-                            CardFace(m)
+                            Box(Modifier.graphicsLayer { alpha = faceFade }) { CardFace(m) }
                         }
                     }
                 }
