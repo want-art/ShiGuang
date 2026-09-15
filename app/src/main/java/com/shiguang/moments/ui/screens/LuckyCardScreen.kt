@@ -2,10 +2,7 @@ package com.shiguang.moments.ui.screens
 
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring.StiffnessMedium
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -19,6 +16,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.matchParentSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -83,8 +81,9 @@ private val RAINBOW = listOf(
 )
 
 /**
- * 随机翻卡：标准「双面单渲染」3D 翻转（封面 0→90°，内容面自反 180° 抵消镜像），点按锁定防连点。
- * 翻完后内容逐块淡入 + 周围迸一圈小彩虹粒子。
+ * 随机翻卡：3D 双面翻转 + 内容渐显 + 彩虹烟火。
+ * 这一版去掉了所有“把动画写进 padding/参数”导致的每帧重排（白屏/卡顿的元凶）；
+ * 烟火也只画在卡片区域，纯绘制不触发布局。
  */
 @Composable
 fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
@@ -107,12 +106,6 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
     }
     val flipDeg = animatable.value
 
-    // 待机呼吸（轻盈，仅氛围）
-    val idle = rememberInfiniteTransition(label = "idle")
-    val idleBob by idle.animateFloat(-6f, 1f, infiniteRepeatable(tween(2400)), label = "bob")
-    val glowAlpha by idle.animateFloat(0.35f, 0.8f, infiniteRepeatable(tween(2800)), label = "glow")
-    val twinkle by idle.animateFloat(0f, 1f, infiniteRepeatable(tween(2000)), label = "tw")
-
     Scaffold(topBar = {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
@@ -130,34 +123,11 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
         } else {
             val m = current ?: moments.last()
             Column(
-                Modifier.padding(padding).fillMaxSize().padding(24.dp)
-                    .background(Brush.verticalGradient(listOf(
-                        MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f),
-                        Color.Transparent))),
+                Modifier.padding(padding).fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(12.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    Box(
-                        Modifier.size(340.dp).graphicsLayer { alpha = 0.35f + 0.45f * glowAlpha }
-                            .background(Brush.radialGradient(
-                                listOf(CoverB.copy(alpha = 0.35f), Color.Transparent)), CircleShape),
-                    )
-                    Box(Modifier.align(Alignment.TopStart)
-                        .padding(
-                            start = (26 + twinkle * 60).coerceAtLeast(0f).dp,
-                            top = (26 - twinkle * 16).coerceAtLeast(0f).dp,
-                        )
-                        .size(10.dp).graphicsLayer { alpha = 0.3f + 0.6f * twinkle }
-                        .background(Color(0xFFFFD54F), CircleShape))
-                    Box(Modifier.align(Alignment.BottomEnd)
-                        .padding(
-                            end = (30 - twinkle * 46).coerceAtLeast(0f).dp,
-                            bottom = (42 + twinkle * 22).coerceAtLeast(0f).dp,
-                        )
-                        .size(8.dp).graphicsLayer { alpha = 0.6f - 0.3f * twinkle }
-                        .background(Color(0xFFFF8A80), CircleShape))
-
                     Box(
                         Modifier.fillMaxWidth().graphicsLayer {
                             rotationY = flipDeg
@@ -165,18 +135,20 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
                         },
                     ) {
                         if (flipDeg < 90f) {
-                            CoverCard(idleBob = idleBob, onClick = { if (!lock) revealed = true })
+                            CoverCard(onClick = { if (!lock) revealed = true })
                         } else {
                             Box(Modifier.graphicsLayer { rotationY = 180f }) {
                                 ContentCard(m = m, revealed = revealed)
                             }
                         }
                     }
+                    // 烟火：只画在卡片区域，纯 Canvas，不参与布局
+                    if (burstSeed > 0) {
+                        Box(Modifier.matchParentSize()) { RainbowBurst(seed = burstSeed) }
+                    }
                 }
 
-                if (burstSeed > 0) RainbowBurst(seed = burstSeed)
-
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(12.dp))
                 Text(HEALING[Math.floorMod(m.id.toInt(), HEALING.size)],
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
@@ -200,7 +172,7 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
 }
 
 @Composable
-private fun CoverCard(idleBob: Float, onClick: () -> Unit) {
+private fun CoverCard(onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(28.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
@@ -208,7 +180,6 @@ private fun CoverCard(idleBob: Float, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(400.dp)
-            .graphicsLayer { translationY = idleBob }
             .clickable(onClick = onClick),
     ) {
         Box(
@@ -278,7 +249,7 @@ private fun ContentCard(m: MomentEntity, revealed: Boolean) {
     }
 }
 
-/** 翻完后迸一圈小彩虹（一次性、轻量 Canvas） */
+/** 翻完后迸一圈小彩虹（一次性；纯 Canvas，不参与布局） */
 @Composable
 private fun RainbowBurst(seed: Int) {
     val ring = remember(seed) { Animatable(0f) }
