@@ -12,7 +12,6 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.shiguang.moments.AppRouting
-import com.shiguang.moments.ui.screens.CaptureScreen
 import com.shiguang.moments.ui.screens.HomeScreen
 import com.shiguang.moments.ui.screens.LuckyCardScreen
 import com.shiguang.moments.ui.screens.MomentDetailScreen
@@ -40,7 +39,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
             when {
                 t == "lucky" -> nav.navigate("lucky") { launchSingleTop = true }
                 t == "main" -> nav.navigate("main") { popUpTo(0) { inclusive = true }; launchSingleTop = true }
-                t == "capture" -> nav.navigate("capture") { launchSingleTop = true }
                 t.startsWith("moment/") -> nav.navigate(t) { launchSingleTop = true }
             }
         } catch (_: Exception) { }
@@ -57,7 +55,6 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
         composable("search") { SearchScreen(nav, viewModel) }
         composable("yearago") { YearAgoScreen(nav, viewModel) }
         composable("lucky") { LuckyCardScreen(nav, viewModel) }
-        composable("capture") { CaptureScreen(nav, viewModel) }
         composable(
             "moment/{id}",
             arguments = listOf(navArgument("id") { type = NavType.LongType }),

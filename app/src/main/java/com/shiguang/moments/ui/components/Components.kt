@@ -110,10 +110,10 @@ fun MomentCard(m: MomentEntity, onOpen: (Long) -> Unit, modifier: Modifier = Mod
                     Text("[${m.type.label}]", style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                if (!m.imagePath.isNullOrBlank()) {
+                if (m.allImagePaths().isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
                     AsyncImage(
-                        model = File(m.imagePath!!),
+                        model = File(m.allImagePaths().first()),
                         contentDescription = "图片瞬间",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
@@ -121,6 +121,11 @@ fun MomentCard(m: MomentEntity, onOpen: (Long) -> Unit, modifier: Modifier = Mod
                             .clip(RoundedCornerShape(12.dp))
                             .height(180.dp),
                     )
+                    if (m.allImagePaths().size > 1) {
+                        Spacer(Modifier.height(4.dp))
+                        Text("+${m.allImagePaths().size - 1} 张图", style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
             }
         }

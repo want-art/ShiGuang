@@ -1,9 +1,12 @@
 package com.shiguang.moments.ui.screens
 
-import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,6 +25,7 @@ import androidx.compose.material.icons.filled.AddAPhoto
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FormatQuote
 import androidx.compose.material.icons.filled.Note
+import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.AssistChip
@@ -30,11 +34,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -55,23 +61,24 @@ import com.shiguang.moments.ui.components.Fmt
 import com.shiguang.moments.ui.components.label
 import java.io.File
 
-/** 瞬间详情：完整文字 + 图 + 引语/备注编辑 + 星标/删除 */
+/** 瞬间详情：完整文字 + 多图缩略 + 引语/备注编辑 + 星标/删除 */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
     val moments by vm.moments.collectAsStateWithLifecycle()
     val m = moments.firstOrNull { it.id == id }
     if (m == null) {
-        androidx.compose.runtime.LaunchedEffect(Unit) { nav.popBackStack() }
+        LaunchedEffect(Unit) { nav.popBackStack() }
         return
     }
 
     var editQuote by remember { mutableStateOf(false) }
     var editNote by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
-    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        if (uri != null) vm.attachImage(id, uri)
-    }
+    var scheduleCapsule by remember { mutableStateOf(false) }
+    val picker = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
+    ) { uris -> if (uris.isNotEmpty()) vm.attachImage(id, uris) }
 
     Scaffold(
         topBar = {
@@ -81,13 +88,14 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
                     IconButton(onClick = { nav.popBackStack() }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "返回") }
                 },
                 actions = {
-                    IconButton(onClick = { vm.toggleStar(id) }) {
-                        Icon(Icons.Filled.Star, "星标", tint = if (m.starred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                    IconButton(onClick = { confirmDelete = true }) {
-                        Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
-                },
+                        IconButton(onClick = { vm.toggleStar(id) }) {
+                            Icon(Icons.Filled.Star, "星标",
+                                tint = if (m.starred) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                        IconButton(onClick = { confirmDelete = true }) {
+                            Icon(Icons.Filled.Delete, "删除", tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    },
             )
         },
     ) { padding ->
@@ -105,12 +113,30 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant)
             Spacer(Modifier.height(14.dp))
 
-            if (!m.imagePath.isNullOrBlank()) {
+            val paths = m.allImagePaths()
+            if (paths.isNotEmpty()) {
                 AsyncImage(
-                    model = File(m.imagePath!!), contentDescription = "图片瞬间",
+                    model = File(paths.first()), contentDescription = "图片瞬间",
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
                 )
+                if (paths.size > 1) {
+                    Spacer(Modifier.height(8.dp))
+                    Row(
+                        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        paths.drop(1).forEach { p ->
+                            AsyncImage(
+                                model = File(p), contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .clip(RoundedCornerShape(10.dp)),
+                            )
+                        }
+                    }
+                }
                 Spacer(Modifier.height(16.dp))
             }
 
@@ -126,9 +152,22 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
                 TextButton(onClick = { editNote = true }) {
                     Icon(Icons.Filled.Note, null, Modifier.size(16.dp)); Spacer(Modifier.width(4.dp)); Text("加备注")
                 }
-                IconButton(onClick = { picker.launch("image/*") }) {
+                IconButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
                     Icon(Icons.Filled.AddAPhoto, "补充图片", tint = MaterialTheme.colorScheme.primary)
                 }
+                IconButton(onClick = { scheduleCapsule = true }) {
+                    Icon(Icons.Filled.Schedule, "藏进时光宝盒",
+                        tint = if (m.capsuleRevealAt != null) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary)
+                }
+            }
+            if (m.capsuleRevealAt != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    if (m.capsuleRevealedAt != null) "📦 时光宝盒已开启"
+                    else "📦 预约 ${java.text.SimpleDateFormat("yyyy年M月d日", java.util.Locale.CHINA).format(java.util.Date(m.capsuleRevealAt!!))} 回到这里",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.tertiary,
+                )
             }
 
             m.quote?.let { q ->
@@ -151,6 +190,21 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
             }
             Spacer(Modifier.height(20.dp))
         }
+    }
+
+    if (scheduleCapsule) {
+        CapsuleDialog(
+            alreadyScheduled = m.capsuleRevealAt != null,
+            onPick = { revealAt ->
+                vm.scheduleCapsule(id, revealAt)
+                scheduleCapsule = false
+            },
+            onCancel = {
+                if (m.capsuleRevealAt != null) vm.cancelCapsule(id)
+                scheduleCapsule = false
+            },
+            onDismiss = { scheduleCapsule = false },
+        )
     }
 
     if (editQuote) {
@@ -186,5 +240,40 @@ fun TextDialog(title: String, initial: String, onConfirm: (String) -> Unit, onDi
         },
         confirmButton = { TextButton(onClick = { onConfirm(v) }) { Text("保存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
+    )
+}
+
+/** 时光宝盒：选择预约揭示时间 */
+@Composable
+private fun CapsuleDialog(
+    alreadyScheduled: Boolean,
+    onPick: (Long) -> Unit,
+    onCancel: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val now = System.currentTimeMillis()
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("📦 藏进时光宝盒") },
+        text = {
+            Column {
+                Text("选一个未来的日子，让这段回忆悄悄回来见你。", style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(12.dp))
+                var h = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MONTH, 1) }
+                listOf(
+                    "1 个月后" to (now + 30L * 24 * 3600 * 1000),
+                    "半年后" to (now + 180L * 24 * 3600 * 1000),
+                    "一年后" to (now + 365L * 24 * 3600 * 1000),
+                ).forEach { (label, ts) ->
+                    OutlinedButton(onClick = { onPick(ts) }, modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                        Text("${label} · ${java.text.SimpleDateFormat("yyyy年M月d日", java.util.Locale.CHINA).format(java.util.Date(ts))}")
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onDismiss) { Text("取消") } },
+        dismissButton = if (alreadyScheduled) {
+            { TextButton(onCancel) { Text("取消宝盒") } }
+        } else null,
     )
 }

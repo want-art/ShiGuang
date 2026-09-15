@@ -23,6 +23,9 @@ android {
             applicationIdSuffix = ".debug"
         }
         release {
+            // 用 Android 默认 debug keystore 签名（虽然叫 release，但用同一 keystore 仍可直装；
+            // 真要发布商店请换正式 keystore）
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),

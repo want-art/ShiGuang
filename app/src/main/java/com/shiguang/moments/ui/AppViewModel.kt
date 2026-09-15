@@ -1,18 +1,27 @@
 package com.shiguang.moments.ui
 
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.shiguang.moments.AppGraph
 import com.shiguang.moments.data.models.LogEntity
+import com.shiguang.moments.data.models.MoodEntity
 import com.shiguang.moments.data.models.MomentEntity
+import com.shiguang.moments.data.models.MomentType
 import com.shiguang.moments.media.ExportManager
 import com.shiguang.moments.prefs.Profile
-import com.shiguang.moments.service.ListeningService
-import com.shiguang.moments.data.models.MomentType
+import com.shiguang.moments.reminder.CapsuleRevealWorker
+import com.shiguang.moments.scoring.Level
+import com.shiguang.moments.scoring.LevelCatalog
+import com.shiguang.moments.util.KeyUtil
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -23,38 +32,93 @@ class AppViewModel : ViewModel() {
 
     val profile: StateFlow<Profile> = profileStore.profile.stateIn(viewModelScope, SharingStarted.Eagerly, Profile())
     val moments: StateFlow<List<MomentEntity>> = AppGraph.repo.allMoments.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+    val moods: StateFlow<List<MoodEntity>> = AppGraph.repo.allMoods.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val logs: StateFlow<List<LogEntity>> = AppGraph.repo.recentLogs(40).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
+    /** 等级：随累计瞬间自动派生 */
+    val level: StateFlow<Level> = moments
+        .map { LevelCatalog.levelFor(it.size) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, LevelCatalog.levelFor(0))
+    val levelProgress: StateFlow<Float> = moments
+        .map { LevelCatalog.progressToNext(it.size) }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, LevelCatalog.progressToNext(0))
+
+    private val _levelUpEvent = MutableSharedFlow<Level>(extraBufferCapacity = 4)
+    val levelUpEvent: SharedFlow<Level> = _levelUpEvent.asSharedFlow()
+    private val _toast = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    val toast: SharedFlow<String> = _toast.asSharedFlow()
+
     // ---------- 收藏操作 ----------
-    fun saveManual(sender: String, text: String, imageUri: Uri?) = viewModelScope.launch {
-        AppGraph.repo.addManual(sender, text, imageUri)
+    fun saveManual(sender: String, text: String, imageUris: List<Uri>) = viewModelScope.launch {
+        val before = moments.value.size
+        AppGraph.repo.addManual(sender, text, imageUris)
+        val after = moments.value.size
+        maybeFireSavedEvents(before, after)
     }
     fun toggleStar(id: Long) = viewModelScope.launch { AppGraph.repo.toggleStar(id) }
     fun setNote(id: Long, n: String) = viewModelScope.launch { AppGraph.repo.setNote(id, n) }
     fun setQuote(id: Long, q: String) = viewModelScope.launch { AppGraph.repo.setQuote(id, q) }
     fun deleteMoment(id: Long) = viewModelScope.launch { AppGraph.repo.deleteMoment(id) }
-    fun attachImage(id: Long, uri: Uri) = viewModelScope.launch { AppGraph.repo.attachManualImage(id, uri) }
+    fun attachImage(id: Long, uris: List<Uri>) = viewModelScope.launch {
+        val before = moments.value.size
+        AppGraph.repo.attachManualImage(id, uris)
+        val after = moments.value.size
+        maybeFireSavedEvents(before, after)
+    }
+
+    private fun maybeFireSavedEvents(before: Int, after: Int) {
+        if (after <= before) return
+        _toast.tryEmit("+1 XP · 已收进回忆 💙")
+        val oldLevel = LevelCatalog.levelFor(before)
+        val newLevel = LevelCatalog.levelFor(after)
+        if (newLevel.tier > oldLevel.tier) _levelUpEvent.tryEmit(newLevel)
+    }
 
     // ---------- 偏好 ----------
-    fun setThemes(t: Set<String>) = viewModelScope.launch { profileStore.setThemes(t) }
     fun setOnboarded(v: Boolean) = viewModelScope.launch { profileStore.setOnboarded(v) }
-    fun setApps(t: Set<String>) = viewModelScope.launch { profileStore.setApps(t) }
-    fun setRemindThreshold(v: Int) = viewModelScope.launch { profileStore.setRemindThreshold(v) }
-    fun setAutoThreshold(v: Int) = viewModelScope.launch { profileStore.setAutoThreshold(v) }
-    fun setAutoSave(b: Boolean) = viewModelScope.launch { profileStore.setAutoSave(b) }
-    fun setListening(b: Boolean) = viewModelScope.launch { profileStore.setListening(b) }
-    fun setA11y(b: Boolean) = viewModelScope.launch { profileStore.setA11y(b) }
-    fun setGallery(b: Boolean) = viewModelScope.launch { profileStore.setGalleryImport(b) }
+    fun setThemes(t: Set<String>) = viewModelScope.launch { profileStore.setThemes(t) }
     fun setQuiet(b: Boolean, s: Int, e: Int) = viewModelScope.launch { profileStore.setQuiet(b, s, e) }
     fun setDailyReview(on: Boolean, h: Int, m: Int) = viewModelScope.launch { profileStore.setDailyReview(on, h, m) }
+    fun setProfile(nickname: String, signature: String, avatarPath: String?) =
+        viewModelScope.launch { profileStore.setProfile(nickname, signature, avatarPath) }
+    fun setMagazineShown(weekId: String) = viewModelScope.launch { profileStore.setMagazineShown(weekId) }
     fun setContactStar(name: String, app: String, star: Boolean) = viewModelScope.launch {
         AppGraph.repo.setContactStar(name, app, star)
     }
     fun wipeAll() = viewModelScope.launch { AppGraph.repo.wipeAll() }
 
+    // ---------- 心情打卡 ----------
+    fun recordMood(emoji: String) = viewModelScope.launch {
+        AppGraph.repo.recordMood(emoji)
+        _toast.tryEmit("今日盖章 ✓")
+    }
+
+    // ---------- 时光宝盒 ----------
+    fun scheduleCapsule(id: Long, revealAt: Long) = viewModelScope.launch {
+        AppGraph.repo.scheduleCapsule(id, revealAt)
+        val ctx = AppGraph.appContext ?: return@launch
+        CapsuleRevealWorker.schedule(ctx, id, revealAt)
+        _toast.tryEmit("宝盒已寄存 📦")
+    }
+    fun cancelCapsule(id: Long) = viewModelScope.launch {
+        AppGraph.repo.cancelCapsule(id)
+        val ctx = AppGraph.appContext ?: return@launch
+        CapsuleRevealWorker.cancel(ctx, id)
+    }
+
+    // ---------- 语音秒记 ----------
+    /** 同步调一次设备端语音识别 → 转写文本 → 存入文本型瞬间（实现见 VoiceCapture，下一轮接入） */
+    fun listenVoiceThenSave(ctx: Context, sender: String = "我", onResult: (String?) -> Unit = {}) {
+        // TODO: 接入设备端 SpeechRecognizer 后启用此调用
+        onResult(null)
+    }
+
     // ---------- 模拟注入（debug 页） ----------
-    fun simulateOnce(sender: String, text: String, type: MomentType) {
-        ListeningService.inject(sender, "com.tencent.mm", text, type)
+    fun simulateOnce(sender: String, text: String, type: MomentType) = viewModelScope.launch {
+        val before = moments.value.size
+        AppGraph.repo.simulate(sender, text, type)
+        val after = moments.value.size
+        maybeFireSavedEvents(before, after)
     }
 
     // ---------- 导出 ----------
@@ -73,3 +137,6 @@ private suspend fun com.shiguang.moments.data.repo.MomentRepository.exportTo(
     val ctx = AppGraph.appContext ?: return
     if (asHtml) ExportManager.exportHtml(ctx, uri, all) else ExportManager.exportJson(ctx, uri, all)
 }
+
+// ====== 辅助：本周末第几周 ======
+fun currentWeekIdLocal(): String = KeyUtil.currentWeekId()

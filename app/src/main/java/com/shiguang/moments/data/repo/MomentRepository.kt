@@ -6,22 +6,19 @@ import com.shiguang.moments.data.db.AppDatabase
 import com.shiguang.moments.data.models.ChatMessage
 import com.shiguang.moments.data.models.ContactEntity
 import com.shiguang.moments.data.models.LogEntity
+import com.shiguang.moments.data.models.MoodEntity
 import com.shiguang.moments.data.models.MomentEntity
 import com.shiguang.moments.data.models.MomentType
-import com.shiguang.moments.data.models.PromptEntity
-import com.shiguang.moments.data.models.Verdict
 import com.shiguang.moments.prefs.Profile
 import com.shiguang.moments.prefs.ProfileStore
-import com.shiguang.moments.scoring.ScoringEngine
 import com.shiguang.moments.scoring.ThemeCatalog
 import com.shiguang.moments.service.Notifier
+import com.shiguang.moments.util.KeyUtil
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
-import org.json.JSONObject
-import java.util.UUID
 
 /**
- * 记忆仓库：一切「入库」的唯一入口（监听、无障碍、手动、相册归集都汇到这里）。
+ * 记忆仓库：手动记录、心情打卡、时光宝盒。
  */
 class MomentRepository(private val appContext: Context) {
 
@@ -29,103 +26,26 @@ class MomentRepository(private val appContext: Context) {
     private val momentDao = db.momentDao()
     private val contactDao = db.contactDao()
     private val logDao = db.logDao()
-    private val promptDao = db.promptDao()
+    private val moodDao = db.moodDao()
     private val profileStore = ProfileStore(appContext)
 
     val allMoments: Flow<List<MomentEntity>> = momentDao.all()
     val images: Flow<List<MomentEntity>> = momentDao.images()
+    val allMoods: Flow<List<MoodEntity>> = moodDao.all()
 
     fun recentLogs(n: Int): Flow<List<LogEntity>> = logDao.recent(n)
     suspend fun countMoments(): Long = momentDao.count().toLong()
 
-    /** 核心管线：一条聊天消息 → 日志 → 判分 → 收藏或提示 */
-    suspend fun ingest(msg: ChatMessage, isStar: Boolean, burstCount: Int): Verdict {
-        val profile = profileStore.profile.first()
-        val result = ScoringEngine.evaluate(msg, profile, isStar, burstCount)
-        val quiet = isQuiet(profile, System.currentTimeMillis())
-
-        // 该消息可能在档案打开前到达（如刚装好还没完成引导）；此时不打扰
-        logDao.insert(
-            LogEntity(
-                ts = System.currentTimeMillis(), app = msg.app, sender = msg.sender,
-                text = msg.text, type = msg.type, score = result.score,
-                verdict = result.tier, reason = result.reasons.joinToString("；"),
-                processedAs = "none",
-            )
-        )
-        upsertContact(msg.app, msg.sender)
-
-        return when (result.tier) {
-            Verdict.IGNORED -> Verdict.IGNORED
-            Verdict.PROMPT -> {
-                if (quiet) { markLogLast(msg, result, "quiet-skip"); return Verdict.PROMPT }
-                val pid = createPrompt(msg)
-                Notifier.postPrompt(appContext, pid, msg)
-                markLogLast(msg, result, "prompt")
-                Verdict.PROMPT
-            }
-            Verdict.AUTO -> {
-                if (!profile.autoSaveEnabled) {
-                    val pid = createPrompt(msg)
-                    if (!quiet) Notifier.postPrompt(appContext, pid, msg)
-                    markLogLast(msg, result, "prompt")
-                    return Verdict.PROMPT
-                }
-                val id = createMoment(msg, result.score, result.reasons, source = "auto")
-                markLogLast(msg, result, "auto")
-                if (!quiet) Notifier.postSaved(appContext, id, msg.sender)
-                Verdict.AUTO
-            }
-        }
-    }
-
-    private suspend fun markLogLast(msg: ChatMessage, r: com.shiguang.moments.data.models.ScoreResult, processed: String) {
-        // 日志里 processedAs 用最后一条即可：这里追加一条带 processedAs 的日志避免更新语句
-        logDao.insert(
-            LogEntity(
-                ts = System.currentTimeMillis(), app = msg.app, sender = msg.sender,
-                text = msg.text, type = msg.type, score = r.score,
-                verdict = r.tier, reason = r.reasons.joinToString("；"), processedAs = processed,
-            )
-        )
-    }
-
-    /** 生成一条待办提示（点通知即收藏） */
-    suspend fun createPrompt(msg: ChatMessage): String {
-        val pid = UUID.randomUUID().toString()
-        val payload = JSONObject()
-            .put("app", msg.app).put("sender", msg.sender)
-            .put("text", msg.text).put("type", msg.type.name)
-            .put("sentAt", msg.sentAt)
-        promptDao.insert(PromptEntity(pid, payload.toString(), System.currentTimeMillis()))
-        return pid
-    }
-
-    /** 用户点了「收藏」：按 pid 落库 */
-    suspend fun finishPrompt(pid: String): Long? {
-        val p = promptDao.byId(pid) ?: return null
-        if (p.saved) return null
-        val o = JSONObject(p.payloadJson)
-        val msg = ChatMessage(
-            app = o.getString("app"), sender = o.getString("sender"),
-            text = o.getString("text"), type = MomentType.valueOf(o.getString("type")),
-            sentAt = o.getLong("sentAt"),
-        )
-        val id = createMoment(msg, 0, listOf("手动收藏"), source = "tap")
-        promptDao.markSaved(pid)
-        Notifier.postSaved(appContext, id, msg.sender)
-        return id
-    }
-
-    /** 直接建一条瞬间 */
+    /** 直接建一条瞬间（被 Notifier.postSaved 内部调用） */
     suspend fun createMoment(
         msg: ChatMessage,
         score: Int,
         reasons: List<String>,
         source: String,
-        imagePath: String? = null,
+        imagePaths: List<String> = emptyList(),
         typeOverride: MomentType? = null,
     ): Long {
+        val primary = imagePaths.firstOrNull()
         val id = momentDao.insert(
             MomentEntity(
                 capturedAt = msg.sentAt,
@@ -133,7 +53,8 @@ class MomentRepository(private val appContext: Context) {
                 app = msg.app, sender = msg.sender,
                 type = typeOverride ?: msg.type,
                 text = msg.text,
-                imagePath = imagePath,
+                imagePath = primary,
+                imagePaths = imagePaths.joinToString(","),
                 themeTags = tagsFor(msg.text),
                 score = score,
                 source = source,
@@ -143,29 +64,42 @@ class MomentRepository(private val appContext: Context) {
         return id
     }
 
-    /** 手动收藏（详情页/首页“随手记”）：type 强制 TEXT */
-    suspend fun addManual(sender: String, text: String, imageUri: Uri?): Long {
-        var path: String? = null
-        if (imageUri != null) path = ImageStore.copyToLocal(appContext, imageUri)
+    /** 手动收藏：支持多张图片 → 一条瞬间含多图 */
+    suspend fun addManual(sender: String, text: String, imageUris: List<Uri>): Long {
+        val paths = imageUris.mapNotNull { ImageStore.copyToLocal(appContext, it) }
+        val type = if (paths.isNotEmpty()) MomentType.IMAGE else MomentType.TEXT
         val msg = ChatMessage(
             app = "manual", sender = sender.ifBlank { "我" },
-            text = text, type = if (path != null) MomentType.IMAGE else MomentType.TEXT,
+            text = text, type = type,
             sentAt = System.currentTimeMillis(),
         )
-        return createMoment(msg, 0, emptyList(), source = "manual", imagePath = path)
+        val id = createMoment(msg, 0, emptyList(), source = "manual", imagePaths = paths)
+        Notifier.postSaved(appContext, id, msg.sender)
+        return id
     }
 
-    /** 相册归集：把一张新图挂到最近未配图的图片瞬间上 */
-    suspend fun attachGalleryImage(displayName: String, mediaId: String, uri: Uri, nearTs: Long): Boolean {
-        if (!profileStore.profile.first().galleryImportEnabled) return false
-        val candidates = momentDao.recentImageMomentsWithoutMedia().take(20)
-        val window = 10 * 60 * 1000L
-        val target = candidates.firstOrNull { kotlin.math.abs(it.capturedAt - nearTs) <= window }
-            ?: return false
-        val path = ImageStore.copyToLocal(appContext, uri)
-        if (path == null) return false
-        val updated = target.copy(imagePath = path, mediaSourceId = mediaId, source = "gallery")
-        momentDao.update(updated)
+    /** 语音秒记：把语音转写后的文字记成一条文本型瞬间 */
+    suspend fun addVoiceText(text: String, sender: String = "我"): Long {
+        val msg = ChatMessage(app = "manual", sender = sender, text = text, type = MomentType.TEXT,
+            sentAt = System.currentTimeMillis())
+        val id = createMoment(msg, 0, emptyList(), source = "voice")
+        Notifier.postSaved(appContext, id, sender)
+        return id
+    }
+
+    /** 为已有瞬间追加图片（多张） */
+    suspend fun attachManualImage(id: Long, uris: List<Uri>): Boolean {
+        val m = momentDao.byId(id) ?: return false
+        val paths = uris.mapNotNull { ImageStore.copyToLocal(appContext, it) }
+        if (paths.isEmpty()) return false
+        val merged = (m.allImagePaths() + paths).distinct()
+        momentDao.update(
+            m.copy(
+                imagePath = merged.first(),
+                imagePaths = merged.joinToString(","),
+                mediaSourceId = if (m.mediaSourceId != null) m.mediaSourceId else "manual",
+            )
+        )
         return true
     }
 
@@ -184,15 +118,42 @@ class MomentRepository(private val appContext: Context) {
     suspend fun deleteMoment(id: Long) {
         momentDao.byId(id)?.let { momentDao.delete(it) }
     }
-    suspend fun attachManualImage(id: Long, uri: Uri): Boolean {
-        val m = momentDao.byId(id) ?: return false
-        val path = ImageStore.copyToLocal(appContext, uri) ?: return false
-        momentDao.update(m.copy(imagePath = path, mediaSourceId = "manual"))
-        return true
-    }
     suspend fun wipeAll() {
         momentDao.deleteAll()
     }
+
+    /** 调试模拟注入：直接构造瞬间，绕开任何自动逻辑 */
+    suspend fun simulate(sender: String, text: String, type: MomentType) {
+        val msg = ChatMessage(app = "manual", sender = sender, text = text, type = type,
+            sentAt = System.currentTimeMillis())
+        val id = createMoment(msg, 0, emptyList(), source = "sim")
+        Notifier.postSaved(appContext, id, msg.sender)
+    }
+
+    // ---------- 心情打卡 ----------
+    suspend fun recordMood(emoji: String) {
+        val day = KeyUtil.currentDayLong()
+        moodDao.upsert(MoodEntity(emoji = emoji, ts = System.currentTimeMillis(), day = day))
+    }
+    suspend fun moodForDay(day: Long): MoodEntity? = moodDao.byDay(day)
+    suspend fun moodInRange(start: Long, end: Long): List<MoodEntity> = moodDao.range(start, end)
+
+    // ---------- 时光宝盒 ----------
+    /** 把已保存的瞬间预约为宝盒；调用方需另行安排 WorkManager（由 VM 触发） */
+    suspend fun scheduleCapsule(id: Long, revealAt: Long) {
+        val m = momentDao.byId(id) ?: return
+        momentDao.update(m.copy(capsuleRevealAt = revealAt, capsuleRevealedAt = null))
+    }
+    suspend fun cancelCapsule(id: Long) {
+        val m = momentDao.byId(id) ?: return
+        momentDao.update(m.copy(capsuleRevealAt = null))
+    }
+    suspend fun markCapsuleRevealed(id: Long) {
+        val m = momentDao.byId(id) ?: return
+        momentDao.update(m.copy(capsuleRevealedAt = System.currentTimeMillis()))
+    }
+    suspend fun dueCapsules(nowTs: Long = System.currentTimeMillis()): List<MomentEntity> =
+        momentDao.dueCapsules(nowTs)
 
     private suspend fun tagsFor(text: String): String {
         val profile = profileStore.profile.first()
@@ -226,20 +187,10 @@ class MomentRepository(private val appContext: Context) {
         else {
             contactDao.upsert(ContactEntity(name = name, app = app, isStar = star, lastSeen = System.currentTimeMillis()))
         }
-        // 同步到 DataStore 的 starContacts，方便监听端快速查询
         val profile = profileStore.profile.first()
-        val key = "${app}${""}$name"
+        val key = "${app}${"$"}$name"
         val set = profile.starContacts.toMutableSet()
         if (star) set += key else set -= key
         profileStore.setStarContacts(set)
-    }
-
-    fun isQuiet(profile: Profile, now: Long): Boolean {
-        if (!profile.quietSleeping) return false
-        val h = java.util.Calendar.getInstance().apply { timeInMillis = now }
-            .get(java.util.Calendar.HOUR_OF_DAY)
-        val start = profile.quietStartHour
-        val end = profile.quietEndHour
-        return if (start <= end) h in start until end else (h >= start || h < end)
     }
 }

@@ -8,6 +8,7 @@ import androidx.room.Query
 import androidx.room.Update
 import com.shiguang.moments.data.models.ContactEntity
 import com.shiguang.moments.data.models.LogEntity
+import com.shiguang.moments.data.models.MoodEntity
 import com.shiguang.moments.data.models.MomentEntity
 import com.shiguang.moments.data.models.PromptEntity
 import kotlinx.coroutines.flow.Flow
@@ -28,7 +29,7 @@ interface MomentDao {
     @Query("SELECT * FROM moments WHERE id = :id")
     suspend fun byId(id: Long): MomentEntity?
 
-    @Query("SELECT * FROM moments WHERE imagePath IS NOT NULL ORDER BY capturedAt DESC")
+    @Query("SELECT * FROM moments WHERE (imagePaths != '' OR imagePath IS NOT NULL) ORDER BY capturedAt DESC")
     fun images(): Flow<List<MomentEntity>>
 
     @Query("SELECT * FROM moments WHERE starred = 1 ORDER BY capturedAt DESC")
@@ -41,9 +42,12 @@ interface MomentDao {
     @Query("SELECT COUNT(*) FROM moments WHERE capturedAt >= :dayStart AND capturedAt < :dayEnd")
     suspend fun countInRange(dayStart: Long, dayEnd: Long): Int
 
-    /** 相册归集：找最近一条图片型、尚未有图、且时间接近的瞬间 */
-    @Query("SELECT * FROM moments WHERE type = 'IMAGE' AND imagePath IS NULL ORDER BY capturedAt DESC LIMIT 20")
+    @Query("SELECT * FROM moments WHERE type = 'IMAGE' AND imagePaths = '' AND imagePath IS NULL ORDER BY capturedAt DESC LIMIT 20")
     suspend fun recentImageMomentsWithoutMedia(): List<MomentEntity>
+
+    /** 待揭示的时光宝盒（未揭示过 + 已到点） */
+    @Query("SELECT * FROM moments WHERE capsuleRevealAt IS NOT NULL AND capsuleRevealedAt IS NULL AND capsuleRevealAt <= :nowTs ORDER BY capsuleRevealAt ASC")
+    suspend fun dueCapsules(nowTs: Long): List<MomentEntity>
 }
 
 @Dao
@@ -75,4 +79,17 @@ interface PromptDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun insert(p: PromptEntity)
     @Query("SELECT * FROM prompts WHERE pid = :pid LIMIT 1") suspend fun byId(pid: String): PromptEntity?
     @Query("UPDATE prompts SET saved = 1 WHERE pid = :pid") suspend fun markSaved(pid: String)
+}
+
+@Dao
+interface MoodDao {
+    @Insert(onConflict = OnConflictStrategy.REPLACE) suspend fun upsert(m: MoodEntity)
+    @Query("SELECT * FROM moods WHERE day = :day LIMIT 1")
+    suspend fun byDay(day: Long): MoodEntity?
+
+    @Query("SELECT * FROM moods WHERE day BETWEEN :start AND :end")
+    suspend fun range(start: Long, end: Long): List<MoodEntity>
+
+    @Query("SELECT * FROM moods")
+    fun all(): Flow<List<MoodEntity>>
 }

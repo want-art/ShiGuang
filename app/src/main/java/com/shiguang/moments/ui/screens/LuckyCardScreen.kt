@@ -2,7 +2,6 @@ package com.shiguang.moments.ui.screens
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.Crossfade
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -41,6 +40,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
@@ -59,29 +59,31 @@ import java.io.File
 
 private val HEALING = listOf(
     "有些人来过，就把光留了下来。",
-    "记得的瞬间多了，日子就有了重量。",
+    "记得的瞬间多了，日子日子就变得重量。",
     "把生活拆开看，快乐都在细节里。",
     "愿你后来想起，都还能笑出来。",
     "时间的尘埃里也藏着星星。",
     "这一秒会老，但它被你留住了。",
 )
 
-/** 随机回忆卡：翻牌动画，每天给一段惊喜；也是「今夜晚安回忆」的落点 */
+/**
+ * 随机翻牌回忆卡：双面同时渲染会导致叠影；
+ * 修复点 = 单面渲染 + 背面预旋转 180° 抵消镜像 + opacity 切换。
+ */
 @Composable
 fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
     val moments by vm.moments.collectAsStateWithLifecycle()
     var current by remember { mutableStateOf<MomentEntity?>(null) }
-    var front by remember { mutableStateOf(false) }
+    var flipped by remember { mutableStateOf(false) }
 
     LaunchedEffect(moments.size) {
         if (current == null && moments.isNotEmpty()) current = moments.random()
     }
     val rotation by animateFloatAsState(
-        targetValue = if (front) 180f else 0f,
-        animationSpec = tween(500),
+        targetValue = if (flipped) 180f else 0f,
+        animationSpec = tween(durationMillis = 520),
         label = "flip",
     )
-    val shown = (rotation / 360f) >= 0.25f
 
     Scaffold(topBar = {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -90,7 +92,7 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
             Text("今日惊喜", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Spacer(Modifier.weight(1f))
             IconButton(onClick = {
-                if (moments.isNotEmpty()) { current = moments.random(); front = false }
+                if (moments.isNotEmpty()) { current = moments.random(); flipped = false }
             }) { Icon(Icons.Filled.Shuffle, "再抽一张") }
         }
     }) { padding ->
@@ -104,32 +106,44 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(20.dp))
-                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
+                Box(
+                    Modifier.weight(1f),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // 整体容器旋转：cameraDistance 给一点 3D 透视
                     Box(
                         Modifier
                             .fillMaxWidth()
-                            .graphicsLayer { rotationY = rotation }
-                            .clickable(enabled = moments.isNotEmpty()) { front = !front },
+                            .graphicsLayer {
+                                rotationY = rotation
+                                cameraDistance = 14f * density
+                            }
+                            .clickable(enabled = moments.isNotEmpty()) { flipped = !flipped },
                     ) {
-                        Crossfade(targetState = shown, label = "face") { isFront ->
-                            if (isFront) CardFace(m, vm) else CardCover()
+                        // 单面渲染：旋转<90° 显示封面；≥90° 显示背面
+                        // 背面预旋转 180° 抵消镜像
+                        if (rotation < 90f) {
+                            CardCover()
+                        } else {
+                            CardFace(m)
                         }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
-                Text(HEALING[Math.floorMod(m.id.toInt(), HEALING.size)],
+                Text(
+                    HEALING[Math.floorMod(m.id.toInt(), HEALING.size)],
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                    textAlign = TextAlign.Center)
+                    textAlign = TextAlign.Center,
+                )
                 Spacer(Modifier.height(16.dp))
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     OutlinedButton(onClick = {
-                        if (moments.isNotEmpty()) { current = moments.random(); front = false }
-                    }) { Icon(Icons.Filled.Shuffle, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("换一张") }
-                    Button(onClick = {
-                        vm.toggleStar(m.id)
-                        if (!m.starred) { /* 更新本地镜像立即点亮 */ }
+                        if (moments.isNotEmpty()) { current = moments.random(); flipped = false }
                     }) {
+                        Icon(Icons.Filled.Shuffle, null, Modifier.size(16.dp)); Spacer(Modifier.width(6.dp)); Text("换一张")
+                    }
+                    Button(onClick = { vm.toggleStar(m.id) }) {
                         Icon(Icons.Filled.Star, null, Modifier.size(16.dp))
                         Spacer(Modifier.width(6.dp))
                         Text(if (m.starred) "取消星标" else "点亮星标")
@@ -158,21 +172,22 @@ private fun CardCover() {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("🃏", fontSize = 44.sp)
                 Spacer(Modifier.height(12.dp))
-                Text("拾光", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = androidx.compose.ui.graphics.Color.White,
+                Text("拾光", fontSize = 30.sp, fontWeight = FontWeight.Bold, color = Color.White,
                     letterSpacing = 6.sp)
                 Spacer(Modifier.height(6.dp))
-                Text("点一下，翻开今天的记忆", color = androidx.compose.ui.graphics.Color.White.copy(alpha = 0.85f))
+                Text("点一下，翻开今天的记忆", color = Color.White.copy(alpha = 0.85f))
             }
         }
     }
 }
 
 @Composable
-private fun CardFace(m: MomentEntity, vm: AppViewModel) {
+private fun CardFace(m: MomentEntity) {
     Card(
         shape = RoundedCornerShape(26.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 6.dp),
+        modifier = Modifier.graphicsLayer { rotationY = 180f }, // 抵消容器翻转，让文字正向
     ) {
         Column(Modifier.fillMaxWidth().height(420.dp).padding(20.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -181,13 +196,28 @@ private fun CardFace(m: MomentEntity, vm: AppViewModel) {
                 Text(Fmt.fullDay(m.capturedAt), style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
-            if (!m.imagePath.isNullOrBlank()) {
+            val paths = m.allImagePaths()
+            if (paths.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
                 AsyncImage(
-                    model = File(m.imagePath!!), contentDescription = null,
+                    model = File(paths.first()), contentDescription = null,
                     contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(230.dp).clip(RoundedCornerShape(16.dp)),
+                    modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(16.dp)),
                 )
+                if (paths.size > 1) {
+                    Spacer(Modifier.height(6.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        paths.drop(1).take(4).forEach { p ->
+                            AsyncImage(
+                                model = File(p), contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(RoundedCornerShape(8.dp)),
+                            )
+                        }
+                    }
+                }
             }
             Spacer(Modifier.height(14.dp))
             Text(
@@ -197,7 +227,8 @@ private fun CardFace(m: MomentEntity, vm: AppViewModel) {
             )
             if (!m.quote.isNullOrBlank()) {
                 Spacer(Modifier.height(10.dp))
-                Text("「${m.quote}」", color = MaterialTheme.colorScheme.primary, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+                Text("「${m.quote}」", color = MaterialTheme.colorScheme.primary,
+                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
             }
         }
     }
