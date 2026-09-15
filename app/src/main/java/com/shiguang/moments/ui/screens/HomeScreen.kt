@@ -1,13 +1,7 @@
 package com.shiguang.moments.ui.screens
 
-import android.net.Uri
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.PickVisualMediaRequest
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,49 +15,32 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.Notes
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.CameraAlt
-import androidx.compose.material.icons.filled.Lightbulb
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material3.AssistChip
-import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.DatePicker
-import androidx.compose.material3.DatePickerDialog
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -74,7 +51,6 @@ import com.shiguang.moments.ui.AppViewModel
 import com.shiguang.moments.ui.components.Fmt
 import com.shiguang.moments.ui.components.LevelCard
 import com.shiguang.moments.ui.components.LevelUpOverlay
-import com.shiguang.moments.ui.components.MomentCard
 import com.shiguang.moments.ui.components.MoodStampCard
 import com.shiguang.moments.ui.components.XpToast
 import com.shiguang.moments.util.DailyPrompts
@@ -82,10 +58,8 @@ import com.shiguang.moments.util.KeyUtil
 import com.shiguang.moments.util.Streak
 import java.io.File
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Modifier) {
-    val context = LocalContext.current
     val moments by vm.moments.collectAsStateWithLifecycle()
     val moods by vm.moods.collectAsStateWithLifecycle()
     val profile by vm.profile.collectAsStateWithLifecycle()
@@ -107,27 +81,10 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
     val weekMoments = moments.filter { KeyUtil.weekId(it.capturedAt) == currentWeek }
     val showMagazine = weekMoments.isNotEmpty() && profile.lastMagazineWeekId != currentWeek
 
-    var sender by remember { mutableStateOf(profile.nickname.takeIf { it.isNotBlank() } ?: "我") }
-    LaunchedEffect(profile.nickname) { sender = profile.nickname.takeIf { it.isNotBlank() } ?: "我" }
-    var note by remember { mutableStateOf("") }
-    var imageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
-    var atMillis by remember { mutableStateOf(System.currentTimeMillis()) }
-    var atDayLabel by remember { mutableStateOf("今天") }
-    var showDatePicker by remember { mutableStateOf(false) }
-    var showSelfSheet by remember { mutableStateOf(false) }
-    var selfText by remember { mutableStateOf("") }
-    val prompt = remember { DailyPrompts.promptForToday() }
     var showLevelUp by remember { mutableStateOf(false) }
-
-    val picker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
-    ) { uris -> if (uris.isNotEmpty()) imageUris = imageUris + uris }
-
     val toastFlow by vm.toast.collectAsStateWithLifecycle(initialValue = null)
     val levelUpFlow by vm.levelUpEvent.collectAsStateWithLifecycle(initialValue = null)
-    LaunchedEffect(levelUpFlow) {
-        if (levelUpFlow != null) showLevelUp = true
-    }
+    LaunchedEffect(levelUpFlow) { if (levelUpFlow != null) showLevelUp = true }
 
     Box(modifier.fillMaxSize()) {
         LazyColumn(
@@ -140,7 +97,7 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
                     Column(Modifier.weight(1f)) {
                         Text("拾光", fontSize = 28.sp, fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary)
-                        Text("Hi，${profile.nickname.take(8)} · 今天 ${todayCount} 段",
+                        Text("${DailyPrompts.displayDate()} · 今天 ${todayCount} 段",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -149,6 +106,10 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
                     }
                 }
             }
+
+            // 写优先：最上面的醒目入口
+            item { WriteEntry(onClick = { nav.navigate("new") }) }
+
             item { LevelCard(level = level, progress = levelProgress, totalMoments = moments.size, streak = streak,
                 onClick = { nav.navigate("levels") }) }
 
@@ -159,30 +120,6 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
             }
 
             item { LuckyHero(nav) }
-
-            item {
-                QuickAddCard(
-                    sender = sender, onSender = { sender = it },
-                    note = note, onNote = { note = it },
-                    imageUris = imageUris, onImageUris = { imageUris = it },
-                    atDayLabel = atDayLabel, onDatePick = { showDatePicker = true },
-                    onPick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-                    onSelfWrite = {
-                        selfText = prompt
-                        showSelfSheet = true
-                    },
-                    onSave = {
-                        if (sender.isNotBlank() || note.isNotBlank() || imageUris.isNotEmpty()) {
-                            vm.saveManual(sender, note, imageUris, atMillis)
-                            note = ""
-                            imageUris = emptyList()
-                            atMillis = System.currentTimeMillis()
-                            atDayLabel = "今天"
-                            Toast.makeText(context, "已收进回忆库 💙", Toast.LENGTH_SHORT).show()
-                        }
-                    },
-                )
-            }
 
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
@@ -217,77 +154,57 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
                     }
                 }
             }
-            item { Spacer(Modifier.height(16.dp)) }
+            item { Spacer(Modifier.height(80.dp)) }
         }
 
         XpToast(text = toastFlow, onShown = {})
         LevelUpOverlay(level = level, visible = showLevelUp, onDismiss = { showLevelUp = false })
-    }
 
-    if (showSelfSheet) {
-        val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-        ModalBottomSheet(
-            onDismissRequest = { showSelfSheet = false },
-            sheetState = sheetState,
-        ) {
-            Column(Modifier.padding(horizontal = 22.dp).padding(bottom = 34.dp)) {
-                Text("💌 给今天的自己说一句", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(6.dp))
-                Text("写下来的这段话会作为星标瞬间珍藏起来",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(
-                    value = selfText,
-                    onValueChange = { selfText = it },
-                    label = { Text("今天的鼓励（可改）") },
-                    minLines = 4,
-                    modifier = Modifier.fillMaxWidth(),
+        // 悬浮「＋」随手记
+        FloatingActionButton(
+            onClick = { nav.navigate("new") },
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 96.dp),
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary,
+        ) { Icon(Icons.Filled.Add, "随手记") }
+    }
+}
+
+@Composable
+private fun WriteEntry(onClick: () -> Unit) {
+    Card(
+        shape = RoundedCornerShape(22.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .background(
+                    Brush.linearGradient(
+                        listOf(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.tertiaryContainer),
+                    ),
+                    RoundedCornerShape(22.dp),
                 )
-                Spacer(Modifier.height(12.dp))
-                Button(
-                    onClick = {
-                        if (selfText.isNotBlank()) {
-                            haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
-                            vm.writeToSelf(selfText.trim())
-                            selfText = ""
-                            showSelfSheet = false
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth().height(50.dp),
-                ) { Text("收进回忆 💙") }
-            }
-        }
-    }
-
-    if (showDatePicker) {
-        val todayMillis = com.shiguang.moments.util.KeyUtil.dayBoundaryStart(System.currentTimeMillis())
-        val state = rememberDatePickerState(
-            initialSelectedDateMillis = todayMillis,
-            yearRange = 2020..(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)),
-        )
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton({
-                    state.selectedDateMillis?.let { selMs ->
-                        // selectedDateMillis 是 UTC 当天零点；转成当地 12:00 避免跨日
-                        val cal = java.util.Calendar.getInstance()
-                        cal.timeInMillis = selMs
-                        cal.set(java.util.Calendar.HOUR_OF_DAY, 12)
-                        cal.set(java.util.Calendar.MINUTE, 0)
-                        cal.set(java.util.Calendar.SECOND, 0)
-                        atMillis = cal.timeInMillis
-                        atDayLabel = java.text.SimpleDateFormat("M月d日", java.util.Locale.CHINA)
-                            .format(java.util.Date(atMillis))
-                        showDatePicker = false
-                    }
-                }) { Text("确定") }
-            },
-            dismissButton = { TextButton({ showDatePicker = false }) { Text("取消") } },
+                .padding(horizontal = 18.dp, vertical = 20.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            DatePicker(state = state)
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .background(MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) { Icon(Icons.Filled.Edit, null, tint = MaterialTheme.colorScheme.onPrimary, modifier = Modifier.size(22.dp)) }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text("随手记一笔", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("把此刻变成以后的回忆", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            Text("✍️", fontSize = 30.sp)
         }
     }
 }
@@ -297,86 +214,16 @@ private fun LuckyHero(nav: NavHostController) {
     Box(
         Modifier
             .fillMaxWidth()
-            .height(140.dp)
+            .height(120.dp)
             .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)), RoundedCornerShape(22.dp))
             .clickable { nav.navigate("lucky") },
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("✨ 随机翻开一段回忆", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = Color.White)
-            Spacer(Modifier.height(6.dp))
+            Text("✨ 随机翻开一段回忆", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Spacer(Modifier.height(4.dp))
             Text("像抽卡一样，回到某个被记住的瞬间", color = Color.White.copy(alpha = 0.85f))
         }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun QuickAddCard(
-    sender: String, onSender: (String) -> Unit,
-    note: String, onNote: (String) -> Unit,
-    imageUris: List<Uri>, onImageUris: (List<Uri>) -> Unit,
-    atDayLabel: String, onDatePick: () -> Unit,
-    onPick: () -> Unit, onSelfWrite: () -> Unit, onSave: () -> Unit,
-) {
-    Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
-        Column(Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("随手记一笔", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                AssistChip(
-                    onClick = onDatePick,
-                    label = { Text("📅 ${atDayLabel}") },
-                )
-            }
-            Spacer(Modifier.height(10.dp))
-            OutlinedTextField(value = sender, onValueChange = onSender, label = { Text("与谁的瞬间（可空）") },
-                singleLine = true, modifier = Modifier.fillMaxWidth())
-            Spacer(Modifier.height(8.dp))
-            OutlinedTextField(value = note, onValueChange = onNote, label = { Text("记点什么…") },
-                minLines = 2, modifier = Modifier.fillMaxWidth())
-            if (imageUris.isNotEmpty()) {
-                Spacer(Modifier.height(8.dp))
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    imageUris.take(4).forEach { uri ->
-                        AsyncImage(
-                            model = uri, contentDescription = null,
-                            contentScale = androidx.compose.ui.layout.ContentScale.Crop,
-                            modifier = Modifier
-                                .size(54.dp)
-                                .clip(RoundedCornerShape(8.dp)),
-                        )
-                    }
-                    if (imageUris.size > 4) {
-                        Box(Modifier.size(54.dp).clip(RoundedCornerShape(8.dp)).background(MaterialTheme.colorScheme.surfaceVariant),
-                            contentAlignment = Alignment.Center) {
-                            Text("+${imageUris.size - 4}", style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                }
-            }
-            Spacer(Modifier.height(10.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                OutlinedButton(onClick = onPick) {
-                    Icon(Icons.Filled.CameraAlt, null, Modifier.size(18.dp)); Spacer(Modifier.width(6.dp))
-                    Text(if (imageUris.isEmpty()) "加图（可多选）" else "再加")
-                }
-                Spacer(Modifier.weight(1f))
-                TextButton(onClick = onSelfWrite) { Text("💌 写给自己") }
-                Button(onClick = onSave) { Text("收进回忆库") }
-            }
-        }
-    }
-}
-
-private fun greeting(): String {
-    val h = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
-    return when {
-        h < 5 -> "夜深了，记得好好睡"
-        h < 11 -> "早上好，今天也有好事情发生"
-        h < 14 -> "中午好，歇一歇看看回忆"
-        h < 18 -> "下午好，来翻翻过去的小美好"
-        else -> "晚上好，今天过得怎么样？"
     }
 }
 
@@ -426,7 +273,7 @@ private fun WeeklyMagazineCard(weekMoments: List<com.shiguang.moments.data.model
                     } else {
                         Spacer(Modifier.weight(1f))
                     }
-                    OutlinedButton(onClick = onKeep) { Text("收下") }
+                    androidx.compose.material3.OutlinedButton(onClick = onKeep) { Text("收下") }
                 }
             }
         }

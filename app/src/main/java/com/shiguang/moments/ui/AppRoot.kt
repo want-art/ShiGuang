@@ -18,6 +18,7 @@ import com.shiguang.moments.ui.screens.LuckyCardScreen
 import com.shiguang.moments.ui.screens.MainScreen
 import com.shiguang.moments.ui.screens.MomentDetailScreen
 import com.shiguang.moments.ui.screens.MonthlyReportScreen
+import com.shiguang.moments.ui.screens.NewMomentScreen
 import com.shiguang.moments.ui.screens.OnboardingScreen
 import com.shiguang.moments.ui.screens.PersonScreen
 import com.shiguang.moments.ui.screens.SearchScreen
@@ -56,6 +57,7 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
         composable("main") { MainScreen(nav, viewModel) }
         composable("timeline") { TimelineScreen(nav, viewModel) }
         composable("search") { SearchScreen(nav, viewModel) }
+        composable("new") { NewMomentScreen(nav, viewModel) }
         composable("yearago") { YearAgoScreen(nav, viewModel) }
         composable("levels") { LevelDetailScreen(nav, viewModel) }
         composable("monthly") { MonthlyReportScreen(nav, viewModel) }

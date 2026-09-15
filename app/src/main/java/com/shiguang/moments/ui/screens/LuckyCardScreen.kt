@@ -1,7 +1,11 @@
 package com.shiguang.moments.ui.screens
 
+import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -17,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -98,6 +103,12 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
         animationSpec = tween(durationMillis = 220),
         label = "faceFade",
     )
+    // 待机动态：卡片呼吸浮动 + 背后光晕 + 星光微漂
+    val idle = rememberInfiniteTransition(label = "idle")
+    val idleBob by idle.animateFloat(-7f, 2f, infiniteRepeatable(tween(2400), RepeatMode.Reverse), label = "bob")
+    val idleScale by idle.animateFloat(0.99f, 1.02f, infiniteRepeatable(tween(2400), RepeatMode.Reverse), label = "sc")
+    val glowAlpha by idle.animateFloat(0.4f, 0.85f, infiniteRepeatable(tween(2800), RepeatMode.Reverse), label = "glow")
+    val twinkle by idle.animateFloat(0f, 1f, infiniteRepeatable(tween(2000), RepeatMode.Reverse), label = "tw")
 
     Scaffold(topBar = {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -124,15 +135,48 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
                     Modifier.weight(1f),
                     contentAlignment = Alignment.Center,
                 ) {
-                    // 整体容器旋转：cameraDistance 给一点 3D 透视
+                    // 背后的光晕，柔和呼吸
+                    Box(
+                        Modifier
+                            .size(320.dp)
+                            .graphicsLayer { alpha = 0.35f + 0.5f * glowAlpha }
+                            .background(
+                                Brush.radialGradient(
+                                    listOf(
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.5f),
+                                        Color.Transparent,
+                                    ),
+                                ),
+                                CircleShape,
+                            ),
+                    )
+                    // 两粒缓缓漂移的星光
+                    Box(
+                        Modifier
+                            .align(Alignment.TopStart)
+                            .padding(start = (36 + twinkle * 60).dp, top = (30 - twinkle * 18).dp)
+                            .size(10.dp)
+                            .graphicsLayer { alpha = 0.3f + 0.6f * twinkle }
+                            .background(MaterialTheme.colorScheme.tertiary, CircleShape),
+                    )
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomEnd)
+                            .padding(end = (40 - twinkle * 50).dp, bottom = (44 + twinkle * 22).dp)
+                            .size(8.dp)
+                            .graphicsLayer { alpha = 0.5f * (1f - twinkle) + 0.3f }
+                            .background(MaterialTheme.colorScheme.secondary, CircleShape),
+                    )
+                    // 整体容器旋转：cameraDistance 给一点 3D 透视；idleBob 让卡片保持呼吸
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .graphicsLayer {
                                 rotationY = rotation
                                 cameraDistance = 14f * density
-                                scaleX = liftScale
-                                scaleY = liftScale
+                                scaleX = liftScale * idleScale
+                                scaleY = liftScale * idleScale
+                                translationY = idleBob
                             }
                             .clickable(enabled = moments.isNotEmpty()) { flipped = !flipped },
                     ) {
