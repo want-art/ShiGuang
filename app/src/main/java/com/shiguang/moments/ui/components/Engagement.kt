@@ -16,6 +16,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,6 +43,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.composed
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -50,6 +52,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -151,6 +154,87 @@ private fun StatPill(value: String, label: String) {
         Text(value, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.primary)
         Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+/* ============ 通用动效工具 ============ */
+
+/** 按压缩放反馈：按下缩一点，松手弹回 */
+fun Modifier.pressScale(scale: Float = 0.955f): Modifier = composed {
+    val interaction = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val pressed by interaction.collectIsPressedAsState()
+    val s by animateFloatAsState(
+        targetValue = if (pressed) scale else 1f,
+        animationSpec = spring(dampingRatio = 0.65f, stiffness = Spring.StiffnessMedium),
+        label = "press",
+    )
+    this.graphicsLayer { scaleX = s; scaleY = s }
+}
+
+/** 首页顶部大卡的"毛玻璃流光"：两团渐变光点缓缓流转 */
+@Composable
+fun FlowingGlass(
+    base: Color,
+    accent: Color,
+    modifier: Modifier = Modifier,
+) {
+    val t = rememberInfiniteTransition(label = "flow")
+    val x0 by t.animateFloat(0f, 1f, infiniteRepeatable(tween(5200), RepeatMode.Reverse), label = "x")
+    val y0 by t.animateFloat(0.1f, 0.7f, infiniteRepeatable(tween(5200), RepeatMode.Reverse), label = "y")
+    Box(
+        modifier.drawBehind {
+            val w = size.width; val h = size.height
+            drawRect(
+                Brush.linearGradient(
+                    colors = listOf(base, accent.copy(alpha = 0.9f), base),
+                    start = androidx.compose.ui.geometry.Offset(w * x0, 0f),
+                    end = androidx.compose.ui.geometry.Offset(w * (1f - y0), h),
+                ),
+            )
+        },
+    )
+}
+
+/** 渐次入场：每个 item 错开 delay 淡入上浮（一次性） */
+@Composable
+fun RevealItem(index: Int, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val shown = remember { mutableStateOf(false) }
+    val a by animateFloatAsState(
+        targetValue = if (shown.value) 1f else 0f,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+        label = "revealA",
+    )
+    val y by animateFloatAsState(
+        targetValue = if (shown.value) 0f else 26f,
+        animationSpec = spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMediumLow),
+        label = "revealY",
+    )
+    LaunchedEffect(Unit) {
+        kotlinx.coroutines.delay(index * 70L)
+        shown.value = true
+    }
+    Box(modifier.graphicsLayer { alpha = a; translationY = y }) { content() }
+}
+
+/** 情绪化空状态：大 emoji + 柔和底圈 + 一句话 */
+@Composable
+fun FriendlyEmpty(emoji: String, title: String, subtitle: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+    ) {
+        Box(
+            Modifier
+                .size(104.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text(emoji, fontSize = 46.sp) }
+        Spacer(Modifier.height(16.dp))
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Spacer(Modifier.height(8.dp))
+        Text(subtitle, style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
 

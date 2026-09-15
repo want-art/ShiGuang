@@ -1,5 +1,10 @@
 package com.shiguang.moments.ui.screens
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -50,11 +55,17 @@ fun MainScreen(nav: NavHostController, vm: AppViewModel) {
             }
         },
     ) { padding ->
-        when (selected) {
-            0 -> HomeScreen(nav, vm, Modifier.padding(padding))
-            1 -> CalendarScreen(nav, vm, Modifier.padding(padding))
-            2 -> GalleryScreen(nav, vm, Modifier.padding(padding))
-            3 -> SettingsScreen(nav, vm, Modifier.padding(padding))
+        AnimatedContent(
+            targetState = selected,
+            transitionSpec = { fadeIn(tween(240)) togetherWith fadeOut(tween(200)) },
+            label = "tab",
+        ) { i ->
+            when (i) {
+                0 -> HomeScreen(nav, vm, Modifier.padding(padding))
+                1 -> CalendarScreen(nav, vm, Modifier.padding(padding))
+                2 -> GalleryScreen(nav, vm, Modifier.padding(padding))
+                3 -> SettingsScreen(nav, vm, Modifier.padding(padding))
+            }
         }
     }
 }

@@ -1,7 +1,9 @@
 package com.shiguang.moments.ui.components
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -11,6 +13,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Notes
@@ -32,6 +35,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.shiguang.moments.data.models.MomentEntity
 import com.shiguang.moments.data.models.MomentType
@@ -135,15 +139,20 @@ fun MomentCard(m: MomentEntity, onOpen: (Long) -> Unit, modifier: Modifier = Mod
 }
 
 @Composable
-fun EmptyState(icon: ImageVector, title: String, subtitle: String, modifier: Modifier = Modifier) {
+fun EmptyState(icon: ImageVector, title: String, subtitle: String, modifier: Modifier = Modifier, emoji: String = "🌙") {
     Column(
         modifier = modifier.fillMaxSize().padding(32.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
     ) {
-        Icon(icon, null, tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(56.dp))
+        Box(
+            Modifier
+                .size(104.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerLow, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) { Text(emoji, fontSize = 46.sp) }
         Spacer(Modifier.height(16.dp))
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
         Spacer(Modifier.height(8.dp))
         Text(subtitle, style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)

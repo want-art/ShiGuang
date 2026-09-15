@@ -39,6 +39,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
@@ -48,11 +49,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import coil.compose.AsyncImage
 import com.shiguang.moments.ui.AppViewModel
+import com.shiguang.moments.ui.components.FlowingGlass
 import com.shiguang.moments.ui.components.Fmt
 import com.shiguang.moments.ui.components.LevelCard
 import com.shiguang.moments.ui.components.LevelUpOverlay
 import com.shiguang.moments.ui.components.MoodStampCard
+import com.shiguang.moments.ui.components.RevealItem
 import com.shiguang.moments.ui.components.XpToast
+import com.shiguang.moments.ui.components.pressScale
 import com.shiguang.moments.util.DailyPrompts
 import com.shiguang.moments.util.KeyUtil
 import com.shiguang.moments.util.Streak
@@ -108,18 +112,18 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
             }
 
             // 写优先：最上面的醒目入口
-            item { WriteEntry(onClick = { nav.navigate("new") }) }
+            item { RevealItem(0) { WriteEntry(onClick = { nav.navigate("new") }) } }
 
-            item { LevelCard(level = level, progress = levelProgress, totalMoments = moments.size, streak = streak,
-                onClick = { nav.navigate("levels") }) }
+            item { RevealItem(1) { LevelCard(level = level, progress = levelProgress, totalMoments = moments.size, streak = streak,
+                onClick = { nav.navigate("levels") }) } }
 
-            item { MoodStampCard(todayEmoji = todayMood?.emoji, onPick = { vm.recordMood(it) }) }
+            item { RevealItem(2) { MoodStampCard(todayEmoji = todayMood?.emoji, onPick = { vm.recordMood(it) }) } }
 
             if (showMagazine) {
-                item { WeeklyMagazineCard(weekMoments = weekMoments, onKeep = { vm.setMagazineShown(currentWeek) }) }
+                item { RevealItem(3) { WeeklyMagazineCard(weekMoments = weekMoments, onKeep = { vm.setMagazineShown(currentWeek) }) } }
             }
 
-            item { LuckyHero(nav) }
+            item { RevealItem(4) { LuckyHero(nav) } }
 
             item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)) {
@@ -163,7 +167,7 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
         // 悬浮「＋」随手记
         FloatingActionButton(
             onClick = { nav.navigate("new") },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 96.dp),
+            modifier = Modifier.align(Alignment.BottomEnd).padding(end = 20.dp, bottom = 96.dp).pressScale(),
             containerColor = MaterialTheme.colorScheme.primary,
             contentColor = MaterialTheme.colorScheme.onPrimary,
         ) { Icon(Icons.Filled.Add, "随手记") }
@@ -178,20 +182,20 @@ private fun WriteEntry(onClick: () -> Unit) {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = Modifier
             .fillMaxWidth()
+            .pressScale()
             .clickable(onClick = onClick),
     ) {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.linearGradient(
-                        listOf(MaterialTheme.colorScheme.secondaryContainer, MaterialTheme.colorScheme.tertiaryContainer),
-                    ),
-                    RoundedCornerShape(22.dp),
-                )
-                .padding(horizontal = 18.dp, vertical = 20.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+        Box {
+            FlowingGlass(
+                base = MaterialTheme.colorScheme.secondaryContainer,
+                accent = MaterialTheme.colorScheme.tertiaryContainer,
+            )
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 18.dp, vertical = 20.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
             Box(
                 Modifier
                     .size(44.dp)
@@ -205,6 +209,7 @@ private fun WriteEntry(onClick: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }
             Text("✍️", fontSize = 30.sp)
+            }
         }
     }
 }
@@ -215,10 +220,11 @@ private fun LuckyHero(nav: NavHostController) {
         Modifier
             .fillMaxWidth()
             .height(120.dp)
-            .background(Brush.linearGradient(listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)), RoundedCornerShape(22.dp))
+            .clip(RoundedCornerShape(22.dp))
             .clickable { nav.navigate("lucky") },
         contentAlignment = Alignment.Center,
     ) {
+        FlowingGlass(base = MaterialTheme.colorScheme.primary, accent = MaterialTheme.colorScheme.tertiary)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("✨ 随机翻开一段回忆", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(4.dp))

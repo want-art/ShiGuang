@@ -1,5 +1,10 @@
 package com.shiguang.moments.ui
 
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -48,7 +53,14 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
         } catch (_: Exception) { }
     }
 
-    NavHost(navController = nav, startDestination = "onboarding") {
+    NavHost(
+        navController = nav,
+        startDestination = "onboarding",
+        enterTransition = { fadeIn(tween(260)) + slideInHorizontally(tween(320)) { it / 14 } },
+        exitTransition = { fadeOut(tween(200)) },
+        popEnterTransition = { fadeIn(tween(220)) },
+        popExitTransition = { fadeOut(tween(200)) + slideOutHorizontally(tween(280)) { it / 14 } },
+    ) {
         composable("onboarding") {
             OnboardingScreen(onDone = {
                 nav.navigate("main") { popUpTo(0) { inclusive = true } }
