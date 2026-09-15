@@ -144,11 +144,17 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
                                 listOf(CoverB.copy(alpha = 0.35f), Color.Transparent)), CircleShape),
                     )
                     Box(Modifier.align(Alignment.TopStart)
-                        .padding(start = (26 + twinkle * 60).dp, top = (26 - twinkle * 16).dp)
+                        .padding(
+                            start = (26 + twinkle * 60).coerceAtLeast(0f).dp,
+                            top = (26 - twinkle * 16).coerceAtLeast(0f).dp,
+                        )
                         .size(10.dp).graphicsLayer { alpha = 0.3f + 0.6f * twinkle }
                         .background(Color(0xFFFFD54F), CircleShape))
                     Box(Modifier.align(Alignment.BottomEnd)
-                        .padding(end = (30 - twinkle * 46).dp, bottom = (42 + twinkle * 22).dp)
+                        .padding(
+                            end = (30 - twinkle * 46).coerceAtLeast(0f).dp,
+                            bottom = (42 + twinkle * 22).coerceAtLeast(0f).dp,
+                        )
                         .size(8.dp).graphicsLayer { alpha = 0.6f - 0.3f * twinkle }
                         .background(Color(0xFFFF8A80), CircleShape))
 
