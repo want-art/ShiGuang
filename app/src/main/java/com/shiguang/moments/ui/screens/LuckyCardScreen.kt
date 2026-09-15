@@ -58,11 +58,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.shiguang.moments.data.models.MomentEntity
 import com.shiguang.moments.ui.AppViewModel
 import com.shiguang.moments.ui.components.EmptyState
 import com.shiguang.moments.ui.components.Fmt
+import com.shiguang.moments.ui.components.LocalImage
 import com.shiguang.moments.ui.components.label
 import java.io.File
 
@@ -117,7 +117,15 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
         } else {
             val m = current ?: moments.last()
             Column(
-                Modifier.padding(padding).fillMaxSize().padding(24.dp),
+                Modifier.padding(padding).fillMaxSize().padding(24.dp)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f),
+                                Color.Transparent,
+                            ),
+                        ),
+                    ),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(14.dp))
@@ -230,8 +238,8 @@ private fun ContentCard(m: MomentEntity, vm: AppViewModel) {
             val paths = m.allImagePaths()
             if (paths.isNotEmpty()) {
                 Spacer(Modifier.height(12.dp))
-                AsyncImage(
-                    model = File(paths.first()), contentDescription = null,
+                LocalImage(
+                    data = File(paths.first()), contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(175.dp).clip(RoundedCornerShape(16.dp)),
                 )
@@ -239,7 +247,7 @@ private fun ContentCard(m: MomentEntity, vm: AppViewModel) {
                     Spacer(Modifier.height(6.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         paths.drop(1).take(4).forEach { p ->
-                            AsyncImage(model = File(p), contentDescription = null,
+                            LocalImage(data = File(p), contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.size(44.dp).clip(RoundedCornerShape(8.dp)))
                         }

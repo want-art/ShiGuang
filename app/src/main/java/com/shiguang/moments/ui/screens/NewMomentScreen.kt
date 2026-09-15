@@ -70,9 +70,6 @@ fun NewMomentScreen(nav: NavHostController, vm: AppViewModel) {
     val profile by vm.profile.collectAsStateWithLifecycle()
 
     var sender by remember { mutableStateOf("") }
-    LaunchedEffect(profile.nickname) {
-        if (sender.isBlank()) sender = profile.nickname.takeIf { it.isNotBlank() } ?: "我"
-    }
     var note by remember { mutableStateOf("") }
     var imageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
     var atMillis by remember { mutableStateOf(System.currentTimeMillis()) }

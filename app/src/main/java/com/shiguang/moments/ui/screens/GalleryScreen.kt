@@ -25,9 +25,9 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.shiguang.moments.ui.AppViewModel
 import com.shiguang.moments.ui.components.EmptyState
+import com.shiguang.moments.ui.components.LocalImage
 import java.io.File
 
 /** 相册墙：每个图独立一块（多图瞬间会被拆成多块） */
@@ -43,7 +43,7 @@ fun GalleryScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier =
     }
     if (tiles.isEmpty()) {
         EmptyState(Icons.Filled.PhotoLibrary, "相册墙还空着",
-            "在随手记里加上图，相册会一件件亮起来", modifier)
+            "在随手记里加上图，相册会一件件亮起来", modifier, emoji = "🖼️")
     } else {
         LazyVerticalStaggeredGrid(
             columns = StaggeredGridCells.Fixed(2),
@@ -53,8 +53,8 @@ fun GalleryScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier =
             horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
         ) {
             items(tiles, key = { (mid, path) -> "$mid-$path" }) { (mid, path) ->
-                AsyncImage(
-                    model = File(path), contentDescription = "图片瞬间",
+                LocalImage(
+                    data = File(path), contentDescription = "图片瞬间",
                     contentScale = ContentScale.Crop,
                     modifier = Modifier
                         .fillMaxWidth()

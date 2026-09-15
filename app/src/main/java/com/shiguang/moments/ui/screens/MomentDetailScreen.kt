@@ -54,10 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.shiguang.moments.data.models.MomentEntity
 import com.shiguang.moments.ui.AppViewModel
 import com.shiguang.moments.ui.components.Fmt
+import com.shiguang.moments.ui.components.LocalImage
 import com.shiguang.moments.ui.components.label
 import java.io.File
 
@@ -115,8 +115,8 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
 
             val paths = m.allImagePaths()
             if (paths.isNotEmpty()) {
-                AsyncImage(
-                    model = File(paths.first()), contentDescription = "图片瞬间",
+                LocalImage(
+                    data = File(paths.first()), contentDescription = "图片瞬间",
                     contentScale = ContentScale.FillWidth,
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
                 )
@@ -127,8 +127,8 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         paths.drop(1).forEach { p ->
-                            AsyncImage(
-                                model = File(p), contentDescription = null,
+                            LocalImage(
+                                data = File(p), contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(80.dp)

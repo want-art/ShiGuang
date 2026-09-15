@@ -47,12 +47,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
-import coil.compose.AsyncImage
 import com.shiguang.moments.ui.AppViewModel
 import com.shiguang.moments.ui.components.FlowingGlass
 import com.shiguang.moments.ui.components.Fmt
 import com.shiguang.moments.ui.components.LevelCard
 import com.shiguang.moments.ui.components.LevelUpOverlay
+import com.shiguang.moments.ui.components.LocalImage
 import com.shiguang.moments.ui.components.MoodStampCard
 import com.shiguang.moments.ui.components.RevealItem
 import com.shiguang.moments.ui.components.XpToast
@@ -255,8 +255,8 @@ private fun WeeklyMagazineCard(weekMoments: List<com.shiguang.moments.data.model
     ) {
         Column {
             if (cover != null) {
-                AsyncImage(
-                    model = File(cover), contentDescription = null,
+                LocalImage(
+                    data = File(cover), contentDescription = null,
                     contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                     modifier = Modifier.fillMaxWidth().height(150.dp),
                 )

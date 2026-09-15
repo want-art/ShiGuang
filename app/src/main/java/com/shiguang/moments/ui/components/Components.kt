@@ -55,6 +55,30 @@ object Fmt {
     fun hm(ts: Long) = hm.format(Date(ts))
 }
 
+/**
+ * 本地图片限幅加载：解码上限 1400px，防止大图(手机原图/微信原图)每次解码把内存拉满导致"卡退"。
+ * 列表/详情/相册/卡片统一走这里。
+ */
+@Composable
+fun LocalImage(
+    data: Any,
+    contentDescription: String?,
+    contentScale: ContentScale,
+    modifier: Modifier = Modifier,
+) {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    AsyncImage(
+        model = coil.request.ImageRequest.Builder(ctx)
+            .data(data)
+            .size(1400, 1400)
+            .crossfade(220)
+            .build(),
+        contentDescription = contentDescription,
+        contentScale = contentScale,
+        modifier = modifier,
+    )
+}
+
 val MomentType.label: String
     get() = when (this) {
         MomentType.TEXT -> "文字"
@@ -118,8 +142,8 @@ fun MomentCard(m: MomentEntity, onOpen: (Long) -> Unit, modifier: Modifier = Mod
                 }
                 if (m.allImagePaths().isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    AsyncImage(
-                        model = File(m.allImagePaths().first()),
+                    LocalImage(
+                        data = File(m.allImagePaths().first()),
                         contentDescription = "图片瞬间",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier

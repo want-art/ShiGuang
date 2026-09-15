@@ -24,6 +24,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.size
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilledTonalButton
@@ -45,10 +50,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import com.shiguang.moments.ui.AppViewModel
 import com.shiguang.moments.ui.components.EmptyState
 import com.shiguang.moments.ui.components.Fmt
-import com.shiguang.moments.ui.components.MomentCard
+import com.shiguang.moments.ui.components.LocalImage
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -172,10 +180,60 @@ fun CalendarScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
                 }
             } else {
                 items(selectedMoments, key = { it.id }) { m ->
-                    MomentCard(m, onOpen = { nav.navigate("moment/${m.id}") })
+                    DayMomentCard(m, onOpen = { nav.navigate("moment/${m.id}") })
                 }
             }
             item { Spacer(Modifier.height(20.dp)) }
+        }
+    }
+}
+
+/** 选中日的一张卡片：多图→横滑图墙，单图/无图→普通摘要 */
+@Composable
+private fun DayMomentCard(m: com.shiguang.moments.data.models.MomentEntity, onOpen: (Long) -> Unit) {
+    val imgCount = m.allImagePaths().size
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onOpen(m.id) },
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+    ) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(m.sender, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
+                Spacer(Modifier.width(6.dp))
+                if (imgCount > 0) {
+                    Text("· $imgCount 张图", style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+                Spacer(Modifier.weight(1f))
+                Text(Fmt.hm(m.capturedAt), style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                if (m.starred) Text(" ★", color = MaterialTheme.colorScheme.tertiary)
+            }
+            if (m.text.isNotBlank()) {
+                Spacer(Modifier.height(4.dp))
+                Text(m.text, style = MaterialTheme.typography.bodyMedium, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+            }
+            if (imgCount > 0) {
+                Spacer(Modifier.height(8.dp))
+                Row(
+                    Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    m.allImagePaths().forEach { p ->
+                        LocalImage(
+                            data = File(p), contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(86.dp)
+                                .height(86.dp)
+                                .clip(RoundedCornerShape(9.dp)),
+                        )
+                    }
+                }
+            }
         }
     }
 }
