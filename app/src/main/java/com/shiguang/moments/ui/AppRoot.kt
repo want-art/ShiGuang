@@ -13,13 +13,15 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.shiguang.moments.AppRouting
 import com.shiguang.moments.ui.screens.HomeScreen
+import com.shiguang.moments.ui.screens.LevelDetailScreen
 import com.shiguang.moments.ui.screens.LuckyCardScreen
+import com.shiguang.moments.ui.screens.MainScreen
 import com.shiguang.moments.ui.screens.MomentDetailScreen
+import com.shiguang.moments.ui.screens.MonthlyReportScreen
 import com.shiguang.moments.ui.screens.OnboardingScreen
 import com.shiguang.moments.ui.screens.SearchScreen
 import com.shiguang.moments.ui.screens.TimelineScreen
 import com.shiguang.moments.ui.screens.YearAgoScreen
-import com.shiguang.moments.ui.screens.MainScreen
 
 @Composable
 fun AppRoot(viewModel: AppViewModel = viewModel()) {
@@ -54,6 +56,8 @@ fun AppRoot(viewModel: AppViewModel = viewModel()) {
         composable("timeline") { TimelineScreen(nav, viewModel) }
         composable("search") { SearchScreen(nav, viewModel) }
         composable("yearago") { YearAgoScreen(nav, viewModel) }
+        composable("levels") { LevelDetailScreen(nav, viewModel) }
+        composable("monthly") { MonthlyReportScreen(nav, viewModel) }
         composable("lucky") { LuckyCardScreen(nav, viewModel) }
         composable(
             "moment/{id}",

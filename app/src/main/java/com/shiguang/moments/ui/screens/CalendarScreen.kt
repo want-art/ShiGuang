@@ -155,9 +155,11 @@ fun CalendarScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
             }
         }
 
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(Fmt.fullDay(makeTs(year, month, selectedDay)) + "  ·  ${selectedMoments.size} 段",
-                style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold,
+                modifier = Modifier.weight(1f))
+            FilledTonalButton(onClick = { nav.navigate("monthly") }) { Text("本月报告") }
             FilledTonalButton(onClick = { nav.navigate("yearago") }) { Text("那年今日") }
         }
         Spacer(Modifier.height(8.dp))

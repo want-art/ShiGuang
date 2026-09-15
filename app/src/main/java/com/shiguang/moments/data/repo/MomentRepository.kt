@@ -64,14 +64,14 @@ class MomentRepository(private val appContext: Context) {
         return id
     }
 
-    /** 手动收藏：支持多张图片 → 一条瞬间含多图 */
-    suspend fun addManual(sender: String, text: String, imageUris: List<Uri>): Long {
+    /** 手动收藏：支持多张图片 → 一条瞬间含多图；可指定 capturedAt（补记过去） */
+    suspend fun addManual(sender: String, text: String, imageUris: List<Uri>, atMillis: Long = System.currentTimeMillis()): Long {
         val paths = imageUris.mapNotNull { ImageStore.copyToLocal(appContext, it) }
         val type = if (paths.isNotEmpty()) MomentType.IMAGE else MomentType.TEXT
         val msg = ChatMessage(
             app = "manual", sender = sender.ifBlank { "我" },
             text = text, type = type,
-            sentAt = System.currentTimeMillis(),
+            sentAt = atMillis,
         )
         val id = createMoment(msg, 0, emptyList(), source = "manual", imagePaths = paths)
         Notifier.postSaved(appContext, id, msg.sender)

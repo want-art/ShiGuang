@@ -35,6 +35,9 @@ import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DatePicker
+import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +45,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -74,6 +78,7 @@ import com.shiguang.moments.util.KeyUtil
 import com.shiguang.moments.util.Streak
 import java.io.File
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -102,6 +107,9 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
     LaunchedEffect(profile.nickname) { sender = profile.nickname.takeIf { it.isNotBlank() } ?: "我" }
     var note by remember { mutableStateOf("") }
     var imageUris by remember { mutableStateOf<List<Uri>>(emptyList()) }
+    var atMillis by remember { mutableStateOf(System.currentTimeMillis()) }
+    var atDayLabel by remember { mutableStateOf("今天") }
+    var showDatePicker by remember { mutableStateOf(false) }
     val prompt = remember { DailyPrompts.promptForToday() }
     var showLevelUp by remember { mutableStateOf(false) }
 
@@ -135,7 +143,8 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
                     }
                 }
             }
-            item { LevelCard(level = level, progress = levelProgress, totalMoments = moments.size, streak = streak) }
+            item { LevelCard(level = level, progress = levelProgress, totalMoments = moments.size, streak = streak,
+                onClick = { nav.navigate("levels") }) }
 
             item { MoodStampCard(todayEmoji = todayMood?.emoji, onPick = { vm.recordMood(it) }) }
 
@@ -152,12 +161,15 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
                     sender = sender, onSender = { sender = it },
                     note = note, onNote = { note = it },
                     imageUris = imageUris, onImageUris = { imageUris = it },
+                    atDayLabel = atDayLabel, onDatePick = { showDatePicker = true },
                     onPick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                     onSave = {
                         if (sender.isNotBlank() || note.isNotBlank() || imageUris.isNotEmpty()) {
-                            vm.saveManual(sender, note, imageUris)
+                            vm.saveManual(sender, note, imageUris, atMillis)
                             note = ""
                             imageUris = emptyList()
+                            atMillis = System.currentTimeMillis()
+                            atDayLabel = "今天"
                             Toast.makeText(context, "已收进回忆库 💙", Toast.LENGTH_SHORT).show()
                         }
                     },
@@ -205,6 +217,36 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
         XpToast(text = toastFlow, onShown = {})
         LevelUpOverlay(level = level, visible = showLevelUp, onDismiss = { showLevelUp = false })
     }
+
+    if (showDatePicker) {
+        val todayMillis = com.shiguang.moments.util.KeyUtil.dayBoundaryStart(System.currentTimeMillis())
+        val state = rememberDatePickerState(
+            initialSelectedDateMillis = todayMillis,
+            yearRange = 2020..(java.util.Calendar.getInstance().get(java.util.Calendar.YEAR)),
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton({
+                    state.selectedDateMillis?.let { selMs ->
+                        // selectedDateMillis 是 UTC 当天零点；转成当地 12:00 避免跨日
+                        val cal = java.util.Calendar.getInstance()
+                        cal.timeInMillis = selMs
+                        cal.set(java.util.Calendar.HOUR_OF_DAY, 12)
+                        cal.set(java.util.Calendar.MINUTE, 0)
+                        cal.set(java.util.Calendar.SECOND, 0)
+                        atMillis = cal.timeInMillis
+                        atDayLabel = java.text.SimpleDateFormat("M月d日", java.util.Locale.CHINA)
+                            .format(java.util.Date(atMillis))
+                        showDatePicker = false
+                    }
+                }) { Text("确定") }
+            },
+            dismissButton = { TextButton({ showDatePicker = false }) { Text("取消") } },
+        ) {
+            DatePicker(state = state)
+        }
+    }
 }
 
 @Composable
@@ -248,16 +290,25 @@ private fun LuckyHero(nav: NavHostController) {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun QuickAddCard(
     sender: String, onSender: (String) -> Unit,
     note: String, onNote: (String) -> Unit,
     imageUris: List<Uri>, onImageUris: (List<Uri>) -> Unit,
+    atDayLabel: String, onDatePick: () -> Unit,
     onPick: () -> Unit, onSave: () -> Unit,
 ) {
     Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
         Column(Modifier.padding(16.dp)) {
-            Text("随手记一笔", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("随手记一笔", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                AssistChip(
+                    onClick = onDatePick,
+                    label = { Text("📅 ${atDayLabel}") },
+                )
+            }
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(value = sender, onValueChange = onSender, label = { Text("与谁的瞬间（可空）") },
                 singleLine = true, modifier = Modifier.fillMaxWidth())

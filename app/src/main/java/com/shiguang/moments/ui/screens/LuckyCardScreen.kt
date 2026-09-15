@@ -1,7 +1,8 @@
 package com.shiguang.moments.ui.screens
 
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -81,7 +82,8 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
     }
     val rotation by animateFloatAsState(
         targetValue = if (flipped) 180f else 0f,
-        animationSpec = tween(durationMillis = 520),
+        // 弹簧回弹：翻到 90° 附近微微顿一下，质感更自然
+        animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMediumLow),
         label = "flip",
     )
 

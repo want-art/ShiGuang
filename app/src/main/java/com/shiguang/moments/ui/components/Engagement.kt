@@ -3,10 +3,12 @@ package com.shiguang.moments.ui.components
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -25,6 +27,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AssistChip
@@ -48,6 +52,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -55,11 +60,20 @@ import androidx.compose.ui.unit.sp
 import com.shiguang.moments.scoring.Level
 import kotlinx.coroutines.delay
 
-/** 等级卡：渐变背景 + 进度条 + 升级详情 */
+/** 等级卡：渐变背景 + 经验值 + 进度条 + 详情；点击可进入等级详情页 */
 @Composable
-fun LevelCard(level: Level, progress: Float, totalMoments: Int, streak: Int, modifier: Modifier = Modifier) {
+fun LevelCard(
+    level: Level,
+    progress: Float,
+    totalMoments: Int,
+    streak: Int,
+    modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
+) {
+    val next = com.shiguang.moments.scoring.LevelCatalog.nextLevel(totalMoments)
+    val needNext = (next?.from ?: totalMoments) - totalMoments
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(22.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
@@ -92,23 +106,34 @@ fun LevelCard(level: Level, progress: Float, totalMoments: Int, streak: Int, mod
                         Text("Lv.${level.tier}", style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onPrimaryContainer)
                     }
-                    Text(level.title, style = MaterialTheme.typography.labelMedium,
+                    Text("经验 ${totalMoments}${if (next != null) " / ${next.from}" else " · 满级"} · " + level.title,
+                        style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f))
                     Spacer(Modifier.height(8.dp))
-                    LinearProgressIndicator(progress = { progress.coerceIn(0f, 1f) }, Modifier.fillMaxWidth())
+                    LinearProgressIndicator(
+                        progress = { progress.coerceIn(0f, 1f) },
+                        Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.primary,
+                        trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.18f),
+                    )
                     Spacer(Modifier.height(4.dp))
-                    val next = com.shiguang.moments.scoring.LevelCatalog.nextLevel(totalMoments)
                     Text(
-                        if (next == null) "已是最高等级" else "再记 ${(level.toInclusive.coerceAtMost(next.from - 1) - totalMoments).coerceAtLeast(0)} 段到 ${next.emoji} ${next.name}",
+                        if (next == null) "已是最高等级"
+                        else "再攒 $needNext 段经验升级 ${next.emoji} ${next.name}",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
+                }
+                if (onClick != null) {
+                    Spacer(Modifier.width(8.dp))
+                    Text("查看 →", style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer)
                 }
             }
         }
         Row(Modifier.fillMaxWidth().padding(horizontal = 18.dp, vertical = 10.dp),
             horizontalArrangement = Arrangement.SpaceEvenly) {
-            StatPill("$totalMoments", "珍藏瞬间")
+            StatPill("$totalMoments", "经验值 XP")
             StatPill("$streak", "连续天数" + if (streak >= 3) " 🔥" else "")
             StatPill("Lv.${level.tier}", "等级")
         }
@@ -257,9 +282,10 @@ fun BreathingTint(colors: List<Color>, modifier: Modifier = Modifier) {
     )
 }
 
-/** 心情印章：一键打卡。默认 9 个 emoji；点击展开 grid */
-private val MOOD_EMOJIS = listOf("😊", "🥰", "😌", "😴", "😐", "😕", "😢", "😡", "🤩")
+/** 心情印章：一键打卡。表情横向可滑动；选中时弹簧放大 + 触感确认 */
+private val MOOD_EMOJIS = listOf("😊", "😀", "🥰", "😌", "😴", "🤗", "😐", "😕", "😢", "😡", "🤩", "🥳")
 
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MoodStampCard(
     todayEmoji: String?,
@@ -267,43 +293,105 @@ fun MoodStampCard(
     modifier: Modifier = Modifier,
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var flash by remember { mutableStateOf(0) } // 点击闪光计数（触发动画）
+    val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
+    val scale by animateFloatAsState(
+        targetValue = if (flash > 0) 1f else 0.94f,
+        animationSpec = spring(dampingRatio = 0.5f, stiffness = Spring.StiffnessMedium),
+        label = "moodScale",
+    )
+    LaunchedEffect(flash) { if (flash > 0) delay(220) }
+
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
         modifier = modifier.fillMaxWidth(),
     ) {
-        Column(Modifier.padding(14.dp)) {
+        Column(Modifier.padding(14.dp).graphicsLayer { scaleX = scale; scaleY = scale }) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Filled.Favorite, null, tint = MaterialTheme.colorScheme.tertiary)
+                Box(
+                    Modifier
+                        .size(42.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (todayEmoji != null) MaterialTheme.colorScheme.primary.copy(alpha = 0.16f)
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                            CircleShape,
+                        ),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(todayEmoji ?: "💭", fontSize = 22.sp)
+                }
                 Spacer(Modifier.width(10.dp))
                 Column(Modifier.weight(1f)) {
-                    Text("今天今天", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
-                    Text(if (todayEmoji == null) "点一下记下今天的心情" else "今天的心意：$todayEmoji",
+                    Text(if (todayEmoji == null) "点一下记下今天的心情" else "今天的心情",
+                        style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+                    Text(if (todayEmoji == null) "按下方的表情，1 秒盖章" else "已盖章 · 再点可改",
                         style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-                AssistChip(onClick = { expanded = !expanded },
-                    label = { Text(if (todayEmoji == null) "打卡" else "改一下") })
+                if (todayEmoji != null) {
+                    AssistChip(onClick = { expanded = !expanded },
+                        label = { Text("改一下") })
+                }
             }
             AnimatedVisibility(visible = expanded) {
-                Row(Modifier.padding(top = 10.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    MOOD_EMOJIS.forEach { e ->
+                // 横向可滑：LazyRow + 每个表情 48dp 大点按区域，弹簧反馈
+                LazyRow(
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(MOOD_EMOJIS, key = { it }) { e ->
+                        val chosen = e == todayEmoji
+                        val eb by animateFloatAsState(
+                            targetValue = if (chosen) 1.15f else 1f,
+                            animationSpec = spring(dampingRatio = 0.55f, stiffness = Spring.StiffnessMedium),
+                            label = "emoji$e",
+                        )
                         Box(
                             Modifier
-                                .size(40.dp)
+                                .size(48.dp)
+                                .graphicsLayer { scaleX = eb; scaleY = eb }
                                 .clip(CircleShape)
                                 .background(
-                                    if (todayEmoji == e) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
+                                    if (chosen) MaterialTheme.colorScheme.primary.copy(alpha = 0.22f)
                                     else Color.Transparent,
                                     CircleShape,
                                 )
                                 .clickable {
-                                    onPick(e)
                                     expanded = false
+                                    flash++
+                                    haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                    onPick(e)
                                 },
                             contentAlignment = Alignment.Center,
                         ) {
-                            Text(e, fontSize = 22.sp)
+                            Text(e, fontSize = 28.sp)
+                        }
+                    }
+                }
+                Text("左右滑动看看更多", style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (expanded || todayEmoji == null) {
+                // 未盖章时默认就展示可滑表情条，引导立刻上手
+                if (!expanded && todayEmoji == null) {
+                    LazyRow(
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(top = 6.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        items(MOOD_EMOJIS.take(10), key = { it }) { e ->
+                            Box(
+                                Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.surfaceVariant, CircleShape)
+                                    .clickable {
+                                        flash++
+                                        haptic.performHapticFeedback(androidx.compose.ui.hapticfeedback.HapticFeedbackType.LongPress)
+                                        onPick(e)
+                                    },
+                                contentAlignment = Alignment.Center,
+                            ) { Text(e, fontSize = 20.sp) }
                         }
                     }
                 }

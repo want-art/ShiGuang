@@ -30,6 +30,8 @@ object LevelCatalog {
             from = 250,   toInclusive = Int.MAX_VALUE),
     )
 
+    val ALL: List<Level> get() = TABLE
+
     fun levelFor(total: Int): Level = TABLE.lastOrNull { total >= it.from } ?: TABLE.first()
 
     /** 距下一级进度 [0, 1)；到达顶级返回 1.0 */

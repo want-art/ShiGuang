@@ -49,9 +49,9 @@ class AppViewModel : ViewModel() {
     val toast: SharedFlow<String> = _toast.asSharedFlow()
 
     // ---------- 收藏操作 ----------
-    fun saveManual(sender: String, text: String, imageUris: List<Uri>) = viewModelScope.launch {
+    fun saveManual(sender: String, text: String, imageUris: List<Uri>, atMillis: Long = System.currentTimeMillis()) = viewModelScope.launch {
         val before = moments.value.size
-        AppGraph.repo.addManual(sender, text, imageUris)
+        AppGraph.repo.addManual(sender, text, imageUris, atMillis)
         val after = moments.value.size
         maybeFireSavedEvents(before, after)
     }
@@ -68,7 +68,8 @@ class AppViewModel : ViewModel() {
 
     private fun maybeFireSavedEvents(before: Int, after: Int) {
         if (after <= before) return
-        _toast.tryEmit("+1 XP · 已收进回忆 💙")
+        val idx = (before + after) % SAVE_REACTIONS.size
+        _toast.tryEmit(SAVE_REACTIONS[idx])
         val oldLevel = LevelCatalog.levelFor(before)
         val newLevel = LevelCatalog.levelFor(after)
         if (newLevel.tier > oldLevel.tier) _levelUpEvent.tryEmit(newLevel)
@@ -140,3 +141,13 @@ private suspend fun com.shiguang.moments.data.repo.MomentRepository.exportTo(
 
 // ====== 辅助：本周末第几周 ======
 fun currentWeekIdLocal(): String = KeyUtil.currentWeekId()
+
+/** 保存成功后展示的暖卡片文案池（每次轮换一条） */
+val SAVE_REACTIONS = listOf(
+    "给今天的自己：这件事值得被记住 🌤",
+    "生活里的小发光体，又亮了一个 ✨",
+    "好好的，你已经把今天过成了诗 ✍️",
+    "这一笔，会让多年后的你笑出来 😊",
+    "给今天的自己：慢慢来，你做得很好 🧡",
+    "又多了一段可以回望的日子 🪐",
+)

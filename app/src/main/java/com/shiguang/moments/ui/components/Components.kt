@@ -44,8 +44,10 @@ object Fmt {
     private val d = SimpleDateFormat("yyyy-MM-dd", Locale.CHINA)
     private val full = SimpleDateFormat("yyyy年M月d日 EEEE", Locale.CHINA)
     private val hm = SimpleDateFormat("HH:mm", Locale.CHINA)
+    private val short = SimpleDateFormat("yyyy年M月d日", Locale.CHINA)
     fun dayKey(ts: Long) = d.format(Date(ts))
     fun fullDay(ts: Long) = full.format(Date(ts))
+    fun dayStringShort(ts: Long) = short.format(Date(ts))
     fun hm(ts: Long) = hm.format(Date(ts))
 }
 
