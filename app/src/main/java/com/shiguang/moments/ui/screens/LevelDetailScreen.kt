@@ -49,8 +49,7 @@ import com.shiguang.moments.ui.components.LevelUpOverlay
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LevelDetailScreen(nav: NavHostController, vm: AppViewModel) {
-    val moments by vm.moments.collectAsStateWithLifecycle()
-    val total = moments.size
+    val total by vm.xp.collectAsStateWithLifecycle()
     val level = LevelCatalog.levelFor(total)
     val next = LevelCatalog.nextLevel(total)
     val progress = LevelCatalog.progressToNext(total)
@@ -108,7 +107,7 @@ fun LevelDetailScreen(nav: NavHostController, vm: AppViewModel) {
                             color = MaterialTheme.colorScheme.onPrimary,
                         )
                         Spacer(Modifier.height(10.dp))
-                        Text("每珍藏一段 = 1 经验点", style = MaterialTheme.typography.labelSmall,
+                        Text("每段记录或一次心情盖章 = 1 经验点", style = MaterialTheme.typography.labelSmall,
                             color = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.8f))
                     }
                 }

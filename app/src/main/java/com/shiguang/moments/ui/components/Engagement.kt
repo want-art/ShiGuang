@@ -311,7 +311,11 @@ private fun Particles(seed: Int) {
             Box(
                 Modifier
                     .align(Alignment.Center)
-                    .padding(start = (left + offset / 3f).dp, top = (top - offset).dp)
+                    // padding 必须非负：clamp 防崩
+                    .padding(
+                        start = (left + offset / 3f).coerceAtLeast(0f).dp,
+                        top = (top - offset).coerceAtLeast(0f).dp,
+                    )
                     .size(((i % 5 + 6).dp))
                     .alpha(0.6f - (offset / 720f).coerceAtMost(0.5f))
                     .clip(CircleShape)
@@ -350,7 +354,7 @@ fun XpToast(text: String?, onShown: () -> Unit) {
     )
     val heartScale by animateFloatAsState(
         targetValue = if (visible) 1.18f else 0.9f,
-        animationSpec = infiniteRepeatable(tween(600), RepeatMode.Reverse),
+        animationSpec = tween(600),
         label = "heart",
     )
 

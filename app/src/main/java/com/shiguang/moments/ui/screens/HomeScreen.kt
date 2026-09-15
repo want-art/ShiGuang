@@ -69,6 +69,7 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
     val profile by vm.profile.collectAsStateWithLifecycle()
     val level by vm.level.collectAsStateWithLifecycle()
     val levelProgress by vm.levelProgress.collectAsStateWithLifecycle()
+    val xp by vm.xp.collectAsStateWithLifecycle()
 
     val todayKey = Fmt.dayKey(System.currentTimeMillis())
     val todayMood = moods.firstOrNull { it.day == KeyUtil.currentDayLong() }
@@ -114,7 +115,7 @@ fun HomeScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier = Mo
             // 写优先：最上面的醒目入口
             item { RevealItem(0) { WriteEntry(onClick = { nav.navigate("new") }) } }
 
-            item { RevealItem(1) { LevelCard(level = level, progress = levelProgress, totalMoments = moments.size, streak = streak,
+            item { RevealItem(1) { LevelCard(level = level, progress = levelProgress, totalMoments = xp, streak = streak,
                 onClick = { nav.navigate("levels") }) } }
 
             item { RevealItem(2) { MoodStampCard(todayEmoji = todayMood?.emoji, onPick = { vm.recordMood(it) }) } }
@@ -221,17 +222,22 @@ private fun LuckyHero(nav: NavHostController) {
             .fillMaxWidth()
             .height(120.dp)
             .clip(RoundedCornerShape(22.dp))
+            .background(Brush.linearGradient(listOf(HeroA, HeroB)))
+            .pressScale()
             .clickable { nav.navigate("lucky") },
         contentAlignment = Alignment.Center,
     ) {
-        FlowingGlass(base = MaterialTheme.colorScheme.primary, accent = MaterialTheme.colorScheme.tertiary)
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text("✨ 随机翻开一段回忆", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
             Spacer(Modifier.height(4.dp))
-            Text("像抽卡一样，回到某个被记住的瞬间", color = Color.White.copy(alpha = 0.85f))
+            Text("像抽卡一样，回到某个被记住的瞬间", color = Color.White.copy(alpha = 0.92f))
         }
     }
 }
+
+/** 首页随机卡入口的固定浓饱和渐变（深浅主题都清晰） */
+private val HeroA = Color(0xFF9A4560)
+private val HeroB = Color(0xFFC76B2B)
 
 private val MAG_TITLES = listOf(
     "本周也在好好生活", "这一周的光", "把日子过成了诗",

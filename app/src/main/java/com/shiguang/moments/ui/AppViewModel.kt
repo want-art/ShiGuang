@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -35,12 +36,17 @@ class AppViewModel : ViewModel() {
     val moods: StateFlow<List<MoodEntity>> = AppGraph.repo.allMoods.stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
     val logs: StateFlow<List<LogEntity>> = AppGraph.repo.recentLogs(40).stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
-    /** 等级：随累计瞬间自动派生 */
-    val level: StateFlow<Level> = moments
-        .map { LevelCatalog.levelFor(it.size) }
+    /** 经验点 = 珍藏瞬间数 + 心情盖章天数（心情也涨经验） */
+    val xp: StateFlow<Int> = moments.combine(moods) { m, mo ->
+        m.size + mo.map { it.day }.toSet().size
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    /** 等级：随经验自动派生 */
+    val level: StateFlow<Level> = xp
+        .map { LevelCatalog.levelFor(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LevelCatalog.levelFor(0))
-    val levelProgress: StateFlow<Float> = moments
-        .map { LevelCatalog.progressToNext(it.size) }
+    val levelProgress: StateFlow<Float> = xp
+        .map { LevelCatalog.progressToNext(it) }
         .stateIn(viewModelScope, SharingStarted.Eagerly, LevelCatalog.progressToNext(0))
 
     private val _levelUpEvent = MutableSharedFlow<Level>(extraBufferCapacity = 4)
@@ -95,10 +101,13 @@ class AppViewModel : ViewModel() {
     }
     fun wipeAll() = viewModelScope.launch { AppGraph.repo.wipeAll() }
 
-    // ---------- 心情打卡 ----------
+    // ---------- 心情打卡（也涨经验） ----------
     fun recordMood(emoji: String) = viewModelScope.launch {
+        val before = xp.value
         AppGraph.repo.recordMood(emoji)
-        _toast.tryEmit("今日盖章 ✓")
+        val after = xp.value
+        if (after > before) maybeFireSavedEvents(before, after)
+        else _toast.tryEmit("今日已盖章 ✓")
     }
 
     // ---------- 时光宝盒 ----------
