@@ -1,7 +1,7 @@
 package com.shiguang.moments.ui.screens
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring.StiffnessMedium
+import androidx.compose.animation.core.Spring.StiffnessLow
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -99,7 +99,7 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
     val animatable = remember { Animatable(0f) }
     LaunchedEffect(revealed) {
         lock = true
-        animatable.animateTo(if (revealed) 180f else 0f, spring(dampingRatio = 0.76f, stiffness = StiffnessMedium))
+        animatable.animateTo(if (revealed) 180f else 0f, spring(dampingRatio = 0.82f, stiffness = StiffnessLow))
         lock = false
         if (revealed) burstSeed++
     }
@@ -200,9 +200,9 @@ private fun CoverCard(onClick: () -> Unit) {
 
 @Composable
 private fun ContentCard(m: MomentEntity, revealed: Boolean) {
-    val senderA by animateFloatAsState(if (revealed) 1f else 0f, tween(240, delayMillis = 20), label = "s")
-    val mediaA by animateFloatAsState(if (revealed) 1f else 0f, tween(280, delayMillis = 180), label = "m")
-    val textA by animateFloatAsState(if (revealed) 1f else 0f, tween(280, delayMillis = 360), label = "t")
+    val senderA by animateFloatAsState(if (revealed) 1f else 0f, tween(300, delayMillis = 40), label = "s")
+    val mediaA by animateFloatAsState(if (revealed) 1f else 0f, tween(340, delayMillis = 240), label = "m")
+    val textA by animateFloatAsState(if (revealed) 1f else 0f, tween(340, delayMillis = 420), label = "t")
     Card(
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
