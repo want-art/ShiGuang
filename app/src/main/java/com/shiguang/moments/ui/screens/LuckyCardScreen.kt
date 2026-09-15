@@ -1,15 +1,5 @@
 package com.shiguang.moments.ui.screens
 
-import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -23,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -50,7 +39,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -75,14 +63,13 @@ private val HEALING = listOf(
     "这一秒会老，但它被你留住了。",
 )
 
-/** 封面固定浓饱和渐变（深浅模式都清晰） */
 private val CoverA = Color(0xFF9A4560)
 private val CoverB = Color(0xFFC76B2B)
 
 /**
- * 随机翻卡（最稳版）：
- * 不用 3D 旋转/Animatable——纯 AnimatedContent 淡入淡出+缩放，
- * 天然稳定；封面浓饱和、白字，任何主题都清楚。
+ * 随机翻卡（对照实验版）：零动画、不无限循环、纯 if/else 切换。
+ * 若此版仍闪退 → 已排除动画/图层因素，问题只在卡片内容本身（图/文本），
+ * 崩栈会写入 Files/crash.log，可直接读取定位。
  */
 @Composable
 fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
@@ -93,12 +80,6 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
     LaunchedEffect(moments.size) {
         if (current == null && moments.isNotEmpty()) current = moments.random()
     }
-
-    // 待机呼吸（只作用于封面侧）
-    val idle = rememberInfiniteTransition(label = "idle")
-    val idleBob by idle.animateFloat(-6f, 1f, infiniteRepeatable(tween(2400)), label = "bob")
-    val glowAlpha by idle.animateFloat(0.35f, 0.8f, infiniteRepeatable(tween(2800)), label = "glow")
-    val twinkle by idle.animateFloat(0f, 1f, infiniteRepeatable(tween(2000)), label = "tw")
 
     Scaffold(topBar = {
         Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -117,57 +98,17 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
         } else {
             val m = current ?: moments.last()
             Column(
-                Modifier.padding(padding).fillMaxSize().padding(24.dp)
-                    .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.7f),
-                                Color.Transparent,
-                            ),
-                        ),
-                    ),
+                Modifier.padding(padding).fillMaxSize().padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 Spacer(Modifier.height(14.dp))
                 Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
-                    // 暖色光晕（提升氛围、避免过白）
-                    Box(
-                        Modifier.size(360.dp).graphicsLayer { alpha = 0.35f + 0.45f * glowAlpha }
-                            .background(Brush.radialGradient(
-                                listOf(CoverB.copy(alpha = 0.35f), Color.Transparent)), CircleShape),
-                    )
-                    // 星光
-                    Box(Modifier.align(Alignment.TopStart)
-                        .padding(start = (26 + twinkle * 60).dp, top = (26 - twinkle * 16).dp)
-                        .size(10.dp).graphicsLayer { alpha = 0.3f + 0.6f * twinkle }
-                        .background(Color(0xFFFFD54F), CircleShape))
-                    Box(Modifier.align(Alignment.BottomEnd)
-                        .padding(end = (30 - twinkle * 46).dp, bottom = (42 + twinkle * 22).dp)
-                        .size(8.dp).graphicsLayer { alpha = 0.6f - 0.3f * twinkle }
-                        .background(Color(0xFFFF8A80), CircleShape))
-
-                    // 核心：切换揭卡（无 3D，天然稳）
-                    AnimatedContent(
-                        targetState = revealed,
-                        transitionSpec = {
-                            if (targetState) {
-                                (fadeIn(tween(300)) + scaleIn(initialScale = 0.86f, animationSpec = tween(340)))
-                                    .togetherWith(fadeOut(tween(240)) + scaleOut(targetScale = 1.06f, animationSpec = tween(240)))
-                            } else {
-                                (fadeIn(tween(260)) + scaleIn(initialScale = 1.06f, animationSpec = tween(280)))
-                                    .togetherWith(fadeOut(tween(220)))
-                            }
-                        },
-                        label = "card",
-                    ) { shown ->
-                        if (!shown) {
-                            CoverCard(idleBob = idleBob, onClick = { revealed = true })
-                        } else {
-                            ContentCard(m = m, vm = vm)
-                        }
+                    if (!revealed) {
+                        CoverCard(onClick = { revealed = true })
+                    } else {
+                        ContentCard(m)
                     }
                 }
-
                 Spacer(Modifier.height(12.dp))
                 Text(HEALING[Math.floorMod(m.id.toInt(), HEALING.size)],
                     style = MaterialTheme.typography.bodyMedium,
@@ -192,7 +133,7 @@ fun LuckyCardScreen(nav: NavHostController, vm: AppViewModel) {
 }
 
 @Composable
-private fun CoverCard(idleBob: Float, onClick: () -> Unit) {
+private fun CoverCard(onClick: () -> Unit) {
     Card(
         shape = RoundedCornerShape(28.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 10.dp),
@@ -200,12 +141,10 @@ private fun CoverCard(idleBob: Float, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .height(400.dp)
-            .graphicsLayer { translationY = idleBob }
             .clickable(onClick = onClick),
     ) {
         Box(
-            Modifier.fillMaxSize().background(
-                Brush.linearGradient(listOf(CoverA, CoverB))),
+            Modifier.fillMaxSize().background(Brush.linearGradient(listOf(CoverA, CoverB))),
             contentAlignment = Alignment.Center,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -222,7 +161,7 @@ private fun CoverCard(idleBob: Float, onClick: () -> Unit) {
 }
 
 @Composable
-private fun ContentCard(m: MomentEntity, vm: AppViewModel) {
+private fun ContentCard(m: MomentEntity) {
     Card(
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),

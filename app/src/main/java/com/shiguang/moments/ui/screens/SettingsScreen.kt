@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.FileDownload
@@ -134,6 +137,32 @@ fun SettingsScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
+                        }
+                    }
+                }
+            }
+
+            item { SectionTitle("诊断") }
+            item {
+                val ctx = LocalContext.current
+                val crashLog = remember {
+                    runCatching { java.io.File(ctx.filesDir, "crash.log").readText() }.getOrNull()
+                        ?.let { it.lineSequence().take(14).joinToString("\n") }
+                }
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(if (crashLog.isNullOrBlank()) "暂无崩溃记录（若闪退过，这里会自动记录原因）"
+                        else crashLog.orEmpty(),
+                            style = MaterialTheme.typography.labelSmall, fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.heightIn(max = 150.dp).verticalScroll(rememberScrollState()))
+                        if (!crashLog.isNullOrBlank()) {
+                            Spacer(Modifier.height(8.dp))
+                            TextButton({
+                                val cm = ctx.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+                                cm.setPrimaryClip(android.content.ClipData.newPlainText("crash", crashLog))
+                                Toast.makeText(ctx, "已复制崩溃日志", Toast.LENGTH_SHORT).show()
+                            }) { Text("复制日志") }
                         }
                     }
                 }
