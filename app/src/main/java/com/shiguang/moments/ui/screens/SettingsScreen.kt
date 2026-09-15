@@ -146,15 +146,24 @@ fun SettingsScreen(nav: NavHostController, vm: AppViewModel, modifier: Modifier 
             item {
                 val ctx = LocalContext.current
                 val crashLog = remember {
-                    runCatching { java.io.File(ctx.filesDir, "crash.log").readText() }.getOrNull()
-                        ?.let { it.lineSequence().take(14).joinToString("\n") }
+                    runCatching {
+                        java.io.File(ctx.filesDir, "crash.log").readLines()
+                            .takeLast(26).asReversed().joinToString("\n")
+                    }.getOrNull()
                 }
+                val versionName = runCatching {
+                    ctx.packageManager.getPackageInfo(ctx.packageName, 0).versionName
+                }.getOrNull() ?: "?"
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)) {
                     Column(Modifier.padding(12.dp)) {
+                        Text("当前版本：$versionName（升级后版本号会变，能确认是否装到新版）",
+                            style = MaterialTheme.typography.labelSmall, fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(6.dp))
                         Text(if (crashLog.isNullOrBlank()) "暂无崩溃记录（若闪退过，这里会自动记录原因）"
                         else crashLog.orEmpty(),
                             style = MaterialTheme.typography.labelSmall, fontSize = 11.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
                             modifier = Modifier.heightIn(max = 150.dp).verticalScroll(rememberScrollState()))
                         if (!crashLog.isNullOrBlank()) {
                             Spacer(Modifier.height(8.dp))

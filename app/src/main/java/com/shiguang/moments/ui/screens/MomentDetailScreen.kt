@@ -5,6 +5,10 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +20,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -48,10 +54,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import com.shiguang.moments.data.models.MomentEntity
@@ -76,6 +89,7 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
     var editNote by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var scheduleCapsule by remember { mutableStateOf(false) }
+    var viewStart by remember { mutableStateOf<Int?>(null) }
     val picker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 9),
     ) { uris -> if (uris.isNotEmpty()) vm.attachImage(id, uris) }
@@ -118,7 +132,8 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
                 LocalImage(
                     data = File(paths.first()), contentDescription = "图片瞬间",
                     contentScale = ContentScale.FillWidth,
-                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)),
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp))
+                        .clickable { viewStart = 0 },
                 )
                 if (paths.size > 1) {
                     Spacer(Modifier.height(8.dp))
@@ -126,13 +141,14 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
                         Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
                         horizontalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
-                        paths.drop(1).forEach { p ->
+                        paths.drop(1).forEachIndexed { i, p ->
                             LocalImage(
                                 data = File(p), contentDescription = null,
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier
                                     .size(80.dp)
-                                    .clip(RoundedCornerShape(10.dp)),
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable { viewStart = i + 1 },
                             )
                         }
                     }
@@ -226,6 +242,10 @@ fun MomentDetailScreen(nav: NavHostController, vm: AppViewModel, id: Long) {
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("取消") } },
         )
     }
+
+    viewStart?.let { start ->
+        FullScreenImages(m.allImagePaths(), start) { viewStart = null }
+    }
 }
 
 @Composable
@@ -241,6 +261,62 @@ fun TextDialog(title: String, initial: String, onConfirm: (String) -> Unit, onDi
         confirmButton = { TextButton(onClick = { onConfirm(v) }) { Text("保存") } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("取消") } },
     )
+}
+
+/** 全屏看图：左右滑动翻页 + 双指缩放，点 ✕ 关闭，确保看完整 */
+@Composable
+fun FullScreenImages(paths: List<String>, start: Int, onClose: () -> Unit) {
+    val safe = paths.ifEmpty { listOf() }
+    val page = start.coerceIn(0, (safe.size - 1).coerceAtLeast(0))
+    val pagerState = rememberPagerState(initialPage = page) { safe.size }
+    Dialog(onDismissRequest = onClose) {
+        Box(Modifier.fillMaxSize().background(Color(0xE6000000))) {
+            if (safe.isEmpty()) return@Box
+            HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { i ->
+                PinchableImage(safe[i])
+            }
+            // 顶部：页数 + 关闭
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.weight(1f))
+                Text("${pagerState.currentPage + 1} / ${safe.size}",
+                    color = Color.White.copy(alpha = 0.85f),
+                    style = MaterialTheme.typography.labelMedium)
+                Spacer(Modifier.width(8.dp))
+                TextButton(onClick = onClose) { Text("✕", color = Color.White, fontSize = 18.sp) }
+            }
+            Text("轻触✕关闭 · 左右滑换图 · 双指缩放", color = Color.White.copy(alpha = 0.6f),
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 28.dp))
+        }
+    }
+}
+
+@Composable
+private fun PinchableImage(path: String) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(Offset.Zero) }
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        LocalImage(
+            data = File(path), contentDescription = null,
+            contentScale = ContentScale.Fit,
+            modifier = Modifier
+                .fillMaxSize()
+                .clipToBounds()
+                .graphicsLayer {
+                    scaleX = scale; scaleY = scale
+                    translationX = offset.x; translationY = offset.y
+                }
+                .pointerInput(Unit) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        scale = (scale * zoom).coerceIn(1f, 5f)
+                        if (scale > 1f) offset = Offset(offset.x + pan.x, offset.y + pan.y) else offset = Offset.Zero
+                    }
+                },
+        )
+    }
 }
 
 /** 时光宝盒：选择预约揭示时间 */
